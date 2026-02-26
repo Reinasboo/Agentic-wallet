@@ -13,6 +13,7 @@ A production-grade autonomous AI agent wallet system for Solana Devnet. This sys
 - **Multi-Agent Support**: Run multiple independent agents simultaneously
 - **Policy Engine**: Configurable constraints on agent actions
 - **Bring Your Own Agent (BYOA)**: Register external AI agents and give them intent-based wallet access
+- **Autonomous Intent**: Unrestricted `AUTONOMOUS` intent type for advanced agents — bypasses policy engine, fully logged
 - **Real-time Dashboard**: Beautiful, Figma-quality frontend for monitoring and management
 - **Strategy Browser**: Marketplace-style page for browsing available strategies
 - **Multi-step Agent Wizard**: 5-step creation flow with dynamic parameter forms
@@ -157,6 +158,9 @@ DEEP_DIVE.md             # Design philosophy and rationale
 ### Transactions
 - `GET /api/transactions` - List all transactions
 
+### Intent History
+- `GET /api/intents` - Global intent history (built-in + BYOA combined)
+
 ### Events
 - `GET /api/events` - Get recent events
 
@@ -254,7 +258,7 @@ curl -X POST http://localhost:3001/api/byoa/register \
     "agentName": "trading-bot-01",
     "agentType": "remote",
     "agentEndpoint": "http://localhost:8080/agent",
-    "supportedIntents": ["TRANSFER_SOL", "TRANSFER_TOKEN", "REQUEST_AIRDROP", "QUERY_BALANCE"]
+    "supportedIntents": ["TRANSFER_SOL", "TRANSFER_TOKEN", "REQUEST_AIRDROP", "QUERY_BALANCE", "AUTONOMOUS"]
   }'
 
 # Response contains: agentId, controlToken, walletPublicKey
@@ -280,12 +284,18 @@ curl -X POST http://localhost:3001/api/byoa/intents \
 
 ### Supported Intent Types
 
-| Intent | Description | Parameters |
-|--------|-------------|------------|
-| `REQUEST_AIRDROP` | Request devnet SOL | `amount` (0-2 SOL) |
-| `TRANSFER_SOL` | Transfer SOL | `recipient`, `amount` |
-| `TRANSFER_TOKEN` | Transfer SPL tokens | `mint`, `recipient`, `amount` |
-| `QUERY_BALANCE` | Check wallet balance | (none) |
+| Intent | Description | Parameters | Policy Validated |
+|--------|-------------|------------|------------------|
+| `REQUEST_AIRDROP` | Request devnet SOL | `amount` (0-2 SOL) | Yes |
+| `TRANSFER_SOL` | Transfer SOL | `recipient`, `amount` | Yes |
+| `TRANSFER_TOKEN` | Transfer SPL tokens | `mint`, `recipient`, `amount` | Yes |
+| `QUERY_BALANCE` | Check wallet balance | (none) | N/A |
+| `AUTONOMOUS` | Unrestricted action | `action`, `params` | **No** |
+
+The `AUTONOMOUS` intent allows agents to execute any action without policy
+constraints. The `action` field specifies the underlying operation (`airdrop`,
+`transfer_sol`, `transfer_token`, `query_balance`) and `params` carries the
+action-specific parameters. All autonomous executions are fully logged.
 
 ### Security Guarantees
 

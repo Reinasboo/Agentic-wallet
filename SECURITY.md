@@ -66,7 +66,9 @@ signTransaction() // ❌ Not available
 // Agent CAN only do this:
 return { type: 'transfer_sol', amount: 0.1, recipient: '...' }
 return { type: 'transfer_token', mint: '...', amount: 10, recipient: '...' }
-// Both intent types are validated by the same policy engine
+return { type: 'autonomous', action: 'transfer_sol', params: { amount: 0.5, recipient: '...' } }
+// All intent types are validated by the same policy engine
+// EXCEPT 'autonomous', which bypasses policy checks by design
 ```
 
 #### 3. Frontend Attack
@@ -157,8 +159,10 @@ observe private key material. This is enforced at multiple levels:
 1. **Control Tokens ≠ Keys**: The control token authenticates intents but cannot
    sign transactions. It is a bearer token only.
 2. **Intent Boundary**: External agents submit high-level intents
-   (`REQUEST_AIRDROP`, `TRANSFER_SOL`, `TRANSFER_TOKEN`, `QUERY_BALANCE`), not raw transactions.
+   (`REQUEST_AIRDROP`, `TRANSFER_SOL`, `TRANSFER_TOKEN`, `QUERY_BALANCE`, `AUTONOMOUS`), not raw transactions.
    The platform converts intents to transactions internally.
+   **Note**: `AUTONOMOUS` intents bypass the policy engine but are still fully
+   logged and rate-limited. The agent still never touches private keys.
 3. **Wallet Isolation**: Each external agent is bound to exactly one wallet.
    An agent's token cannot access any other agent's wallet.
 4. **Token Storage**: Control tokens are immediately hashed (SHA-256) upon
@@ -311,6 +315,9 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [x] Execution settings bounds (cycle 5 s–1 h, actions 1–10 000)
 - [x] SPL token transfer (`transfer_token`) validated by the same policy engine as `transfer_sol`
 - [x] SPL token transfers require wallet-layer signing (agents never access keys)
+- [x] AUTONOMOUS intent type: policy bypass is intentional, documented, and fully logged
+- [x] Global intent history (`/api/intents`) provides unified audit trail for all intent types
+- [x] Orchestrator records built-in agent intents to IntentRouter for centralized logging
 - [x] Unhandled rejection / uncaught exception handlers
 - [x] Production-mode encryption secret validation
 - [x] Request body size limit (100 KB)

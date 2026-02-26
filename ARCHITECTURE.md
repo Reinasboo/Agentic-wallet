@@ -148,7 +148,10 @@ async function runAgentCycle(agentId: string) {
     }
   }
   
-  // 5. Emit events for frontend
+  // 5. Record intent to global history (IntentRouter)
+  recordIntentHistory(agent, decision);
+  
+  // 6. Emit events for frontend
   eventBus.emit(actionEvent);
 }
 ```
@@ -166,6 +169,14 @@ Orchestrator
 Each agent has independent **Execution Settings** (cycle interval, max actions
 per day, enabled/disabled) that can be updated at runtime via
 `PATCH /api/agents/:id/config`.
+
+**Intent History Recording**:
+
+All intent executions — from both built-in agents and BYOA agents — are recorded
+via the IntentRouter's public `recordIntent()` method. The Orchestrator calls
+this after every cycle so that built-in agent activity appears alongside BYOA
+activity in the global intent history. The combined history is available via
+`GET /api/intents`.
 
 ### 5. Frontend Layer (`/apps/frontend`)
 
@@ -243,15 +254,17 @@ External Agent                              Platform
 |------|---------|
 | `agentRegistry.ts` | Registration, auth tokens, agent lifecycle |
 | `walletBinder.ts` | 1:1 wallet creation and binding |
-| `intentRouter.ts` | Intent validation, rate limiting, execution dispatch |
+| `intentRouter.ts` | Intent validation, rate limiting, execution dispatch, intent history |
 | `agentAdapter.ts` | Communication with local/remote agents |
 
 **Key Properties**:
 - External agents never receive private keys
-- Intents are validated against the policy engine
+- Standard intents are validated against the policy engine
+- `AUTONOMOUS` intents bypass policy validation (operator-accepted risk)
 - Rate limiting prevents abuse (30 intents/min per agent)
 - Control tokens are stored as SHA-256 hashes
 - 1 agent = 1 wallet (enforced at the binder level)
+- Intent history is centralized — the IntentRouter's `recordIntent()` method accepts records from both BYOA submissions and Orchestrator-forwarded built-in agent activity
 
 ## Strategy Registry (`/src/agent/strategy-registry.ts`)
 
@@ -316,10 +329,28 @@ type Intent =
   | { type: 'airdrop'; amount: number }
   | { type: 'transfer_sol'; recipient: string; amount: number }
   | { type: 'transfer_token'; mint: string; recipient: string; amount: number }
-  | { type: 'check_balance' };
+  | { type: 'check_balance' }
+  | { type: 'autonomous'; action: 'airdrop' | 'transfer_sol' | 'transfer_token' | 'query_balance'; params: Record<string, unknown> };
 ```
 
-**Intent Validation**:
+**Intent Types**:
+
+| Intent | Description | Policy Validated |
+|--------|-------------|------------------|
+| `airdrop` | Request devnet SOL | Yes |
+| `transfer_sol` | Send SOL | Yes |
+| `transfer_token` | Send SPL tokens | Yes |
+| `check_balance` | Query balance | N/A |
+| `autonomous` | Unrestricted agent action | **No** — bypasses policy engine |
+
+The `autonomous` intent type allows agents to execute any supported action
+without policy constraints (no max-amount, no daily-limit, no min-balance
+checks). This is designed for advanced use cases where the agent operator
+accepts full responsibility. The wallet-manager returns an immediate
+`success(true)` for autonomous intents. All autonomous actions are still
+fully logged to the intent history for auditability.
+
+**Intent Validation** (standard intents):
 1. Policy check (max amounts, daily limits)
 2. Balance sufficiency
 3. Recipient validation

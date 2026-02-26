@@ -140,6 +140,22 @@ agent:
     check_balance:
       description: "Request balance update"
       parameters: []
+
+    autonomous:
+      description: "Unrestricted agent action — bypasses policy engine"
+      parameters:
+        - name: "action"
+          type: "string"
+          enum: ["airdrop", "transfer_sol", "transfer_token", "query_balance"]
+          description: "The underlying action to execute"
+        - name: "params"
+          type: "object"
+          description: "Action-specific parameters (same as the target action)"
+      policy_checks: []  # No policy validation — autonomous
+      notes:
+        - "Fully logged to intent history for auditability"
+        - "Wallet-manager returns immediate success (no balance/limit checks)"
+        - "Designed for advanced operators who accept full responsibility"
 ```
 
 ## dApp / Protocol Interaction Skills
@@ -195,6 +211,7 @@ byoa_intents:
   - TRANSFER_SOL
   - TRANSFER_TOKEN
   - QUERY_BALANCE
+  - AUTONOMOUS
 ```
 
 ## Agent Strategies
@@ -408,6 +425,12 @@ api:
       query:
         count: "number?"
       response: "SystemEvent[]"
+    
+    global_intent_history:
+      method: "GET"
+      path: "/api/intents"
+      description: "Returns combined intent history from built-in agents and BYOA agents"
+      response: "IntentHistoryRecord[]"
     
     list_strategies:
       method: "GET"

@@ -195,12 +195,13 @@ More autonomy = more risk. The system navigates this through **configurable poli
 Low Autonomy ◄────────────────────────► High Autonomy
 (Safe)                                  (Capable)
 
-│ Manual approval    │ Limits enforced  │ Full auto
-│ for each tx        │ by policy        │ execution
-│                    │                  │
-│ ✓ Maximum safety   │ ✓ Balanced       │ ✓ Maximum
-│ ✗ Defeats purpose  │ ✓ Most use cases │   efficiency
-│                    │                  │ ✗ Higher risk
+│ Manual approval    │ Limits enforced  │ AUTONOMOUS   │ Full auto
+│ for each tx        │ by policy        │ intent type  │ execution
+│                    │                  │              │
+│ ✓ Maximum safety   │ ✓ Balanced       │ ✓ No policy  │ ✓ Maximum
+│ ✗ Defeats purpose  │ ✓ Most use cases │   checks     │   efficiency
+│                    │                  │ ✓ Logged     │ ✗ Higher risk
+│                    │                  │ ✓ Auditable  │
 ```
 
 ### Our Position
@@ -208,6 +209,7 @@ Low Autonomy ◄─────────────────────�
 The Agentic Wallet System is designed for the **middle ground**:
 
 - **Automated execution** within policy bounds
+- **Autonomous mode** for advanced operators (AUTONOMOUS intent — skips policy)
 - **Human oversight** through monitoring
 - **Fail-safe defaults** prevent catastrophic loss
 
@@ -519,9 +521,10 @@ Key implementation touchpoints:
 ### BYOA and Token Transfers
 
 External agents registered via BYOA can submit `TRANSFER_TOKEN` intents just
-like `TRANSFER_SOL`. The intent is authenticated, validated against the policy
-engine, and executed through the same secure pipeline — the external agent never
-touches private keys or constructs raw transactions.
+like `TRANSFER_SOL`. They can also submit `AUTONOMOUS` intents to bypass policy
+validation entirely. All intent types are authenticated, executed through the
+same secure pipeline, and fully logged — the external agent never touches
+private keys or constructs raw transactions.
 
 ---
 
@@ -537,6 +540,9 @@ touches private keys or constructs raw transactions.
 - [x] Frontend: Multi-step agent creation wizard
 - [x] Frontend: Agent settings panel (inline config editing)
 - [x] Frontend: BYOA registration page with one-time token UX
+- [x] AUTONOMOUS intent type (unrestricted, policy-bypassing, fully logged)
+- [x] Global intent history (`/api/intents`) combining built-in + BYOA activity
+- [x] Orchestrator → IntentRouter intent recording for built-in agents
 - [ ] PostgreSQL adapter for persistent storage
 - [ ] Multi-wallet agent support
 - [ ] Advanced policy DSL
