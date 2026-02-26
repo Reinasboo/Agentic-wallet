@@ -10,6 +10,16 @@ import { getConfig } from './utils/config.js';
 
 const logger = createLogger('MAIN');
 
+// Catch unhandled rejections to prevent silent crashes
+process.on('unhandledRejection', (reason) => {
+  logger.error('Unhandled promise rejection', { error: String(reason) });
+});
+
+process.on('uncaughtException', (error) => {
+  logger.error('Uncaught exception', { error: String(error) });
+  process.exit(1);
+});
+
 async function main(): Promise<void> {
   try {
     const config = getConfig();

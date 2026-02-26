@@ -10,6 +10,7 @@ A production-grade autonomous AI agent wallet system for Solana Devnet. This sys
 - **Secure Wallet Management**: AES-256-GCM encrypted key storage
 - **Multi-Agent Support**: Run multiple independent agents simultaneously
 - **Policy Engine**: Configurable constraints on agent actions
+- **Bring Your Own Agent (BYOA)**: Register external AI agents and give them intent-based wallet access
 - **Real-time Dashboard**: Beautiful, Figma-quality frontend for monitoring
 - **WebSocket Events**: Live updates on agent activities
 - **Devnet Ready**: Safe testing on Solana Devnet
@@ -76,25 +77,25 @@ This will start:
 │                    Orchestration Layer                       │
 │  (Binds agents to wallets, manages lifecycle, emits events) │
 └─────────────────────────────────────────────────────────────┘
-          │                                      │
-          ▼                                      ▼
-┌──────────────────────┐          ┌──────────────────────────┐
-│     Agent Layer      │          │      Wallet Layer        │
-│  (Decision making,   │  Intent  │  (Key management,        │
-│   emits intents)     │────────► │   transaction signing)   │
-└──────────────────────┘          └──────────────────────────┘
-                                               │
-                                               ▼
-                              ┌──────────────────────────────┐
-                              │        RPC Layer             │
-                              │  (Solana connection,         │
-                              │   transaction submission)    │
-                              └──────────────────────────────┘
-                                               │
-                                               ▼
-                              ┌──────────────────────────────┐
-                              │      Solana Devnet           │
-                              └──────────────────────────────┘
+          │                    │                     │
+          ▼                    ▼                     ▼
+┌──────────────────┐ ┌──────────────────┐ ┌──────────────────────────┐
+│   Agent Layer    │ │  Integration     │ │      Wallet Layer        │
+│  (Decision maker │ │  Layer (BYOA)    │ │  (Key management,        │
+│   emits intents) │ │  External agents │ │   transaction signing)   │
+└──────────────────┘ │  register here   │ └──────────────────────────┘
+                     │  and submit      │            │
+                     │  intents via API │            ▼
+                     └──────────────────┘ ┌──────────────────────────┐
+                                          │        RPC Layer         │
+                                          │  (Solana connection,     │
+                                          │   transaction submission)│
+                                          └──────────────────────────┘
+                                                     │
+                                                     ▼
+                                          ┌──────────────────────────┐
+                                          │      Solana Devnet       │
+                                          └──────────────────────────┘
 ```
 
 ## Project Structure
@@ -112,6 +113,7 @@ This will start:
   /wallet                # Secure wallet management
   /rpc                   # Solana RPC interactions
   /orchestrator          # Agent lifecycle management
+  /integration           # BYOA integration layer
   /utils                 # Shared utilities and types
 
 /docs                    # Documentation
@@ -143,6 +145,17 @@ DEEP_DIVE.md             # Design philosophy and rationale
 ### Events
 - `GET /api/events` - Get recent events
 
+### BYOA (Bring Your Own Agent)
+- `POST /api/byoa/register` - Register external agent, receive wallet + control token
+- `POST /api/byoa/intents` - Submit intent (requires Bearer token)
+- `GET /api/byoa/agents` - List all connected external agents
+- `GET /api/byoa/agents/:id` - Get external agent details
+- `GET /api/byoa/agents/:id/intents` - Get intent history for an agent
+- `POST /api/byoa/agents/:id/activate` - Activate external agent
+- `POST /api/byoa/agents/:id/deactivate` - Deactivate external agent
+- `POST /api/byoa/agents/:id/revoke` - Revoke external agent (permanent)
+- `GET /api/byoa/intents` - Get all BYOA intent history
+
 ## Agent Strategies
 
 ### Accumulator
@@ -168,6 +181,69 @@ Distributes SOL to a list of configured recipients.
   maxTransfersPerDay: 10
 }
 ```
+
+## Bring Your Own Agent (BYOA)
+
+The BYOA integration allows external developers to connect their own AI agents
+(LLMs, bots, trading systems) to the platform without handling private keys or
+signing transactions.
+
+### How It Works
+
+1. **Register** your agent via `POST /api/byoa/register`
+2. **Receive** a wallet address and a one-time control token
+3. **Submit intents** via `POST /api/byoa/intents` (Bearer token auth)
+4. **Observe** execution in the dashboard under "Connected Agents"
+
+### Example Integration
+
+```bash
+# 1. Register
+curl -X POST http://localhost:3001/api/byoa/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agentName": "trading-bot-01",
+    "agentType": "remote",
+    "agentEndpoint": "http://localhost:8080/agent",
+    "supportedIntents": ["TRANSFER_SOL", "REQUEST_AIRDROP", "QUERY_BALANCE"]
+  }'
+
+# Response contains: agentId, controlToken, walletPublicKey
+
+# 2. Submit an intent
+curl -X POST http://localhost:3001/api/byoa/intents \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <controlToken>" \
+  -d '{
+    "type": "REQUEST_AIRDROP",
+    "params": { "amount": 1 }
+  }'
+
+# 3. Query balance
+curl -X POST http://localhost:3001/api/byoa/intents \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <controlToken>" \
+  -d '{
+    "type": "QUERY_BALANCE",
+    "params": {}
+  }'
+```
+
+### Supported Intent Types
+
+| Intent | Description | Parameters |
+|--------|-------------|------------|
+| `REQUEST_AIRDROP` | Request devnet SOL | `amount` (0-2 SOL) |
+| `TRANSFER_SOL` | Transfer SOL | `recipient`, `amount` |
+| `QUERY_BALANCE` | Check wallet balance | (none) |
+
+### Security Guarantees
+
+- External agents **never** receive private keys
+- All actions go through the **policy engine**
+- Intents are **rate-limited** (30/min per agent)
+- Agents can only act on **their own** bound wallet
+- Control tokens are **hashed** at rest (SHA-256)
 
 ## Security
 

@@ -102,3 +102,44 @@ export interface AgentDetail {
   transactions: Transaction[];
   events: SystemEvent[];
 }
+
+// ============================================
+// BYOA Types (Bring-Your-Own-Agent)
+// ============================================
+
+export type ExternalAgentType = 'local' | 'remote';
+export type ExternalAgentStatus = 'registered' | 'active' | 'inactive' | 'revoked';
+export type SupportedIntentType = 'REQUEST_AIRDROP' | 'TRANSFER_SOL' | 'QUERY_BALANCE';
+
+export interface ExternalAgent {
+  id: string;
+  name: string;
+  type: ExternalAgentType;
+  endpoint?: string;
+  supportedIntents: SupportedIntentType[];
+  status: ExternalAgentStatus;
+  walletId?: string;
+  walletPublicKey?: string;
+  createdAt: string;
+  lastActiveAt?: string;
+  metadata?: Record<string, unknown>;
+  balance?: number;
+}
+
+export interface IntentHistoryRecord {
+  intentId: string;
+  agentId: string;
+  type: SupportedIntentType;
+  params: Record<string, unknown>;
+  status: 'executed' | 'rejected';
+  result?: Record<string, unknown>;
+  error?: string;
+  createdAt: string;
+}
+
+export interface ExternalAgentDetail {
+  agent: ExternalAgent;
+  balance: number;
+  tokenBalances: TokenBalance[];
+  intents: IntentHistoryRecord[];
+}

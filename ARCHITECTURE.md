@@ -159,6 +159,8 @@ Frontend Capabilities:
 ✓ View balances
 ✓ View transactions
 ✓ View activity feed
+✓ View connected external agents (BYOA)
+✓ View intent history
 ✗ Access private keys
 ✗ Sign transactions
 ✗ Modify agent logic
@@ -169,6 +171,51 @@ Frontend Capabilities:
 Backend → REST API → Frontend (polling)
        → WebSocket → Frontend (real-time)
 ```
+
+### 6. Integration Layer (`/src/integration`) — BYOA
+
+**Responsibility**: External agent registration, wallet binding, intent routing
+
+The Integration Layer enables Bring-Your-Own-Agent (BYOA) — allowing external
+developers to connect their own AI agents without touching private keys.
+
+```
+External Agent                              Platform
+     │                                         │
+     │  POST /api/byoa/register                │
+     │  { agentName, type, intents }           │
+     │────────────────────────────────────────►│
+     │                                         │ Creates wallet
+     │  { agentId, controlToken, walletPubkey }│ Binds agent → wallet
+     │◄────────────────────────────────────────│
+     │                                         │
+     │  POST /api/byoa/intents                 │
+     │  Bearer <token>                         │
+     │  { type: "TRANSFER_SOL", params: {...} }│
+     │────────────────────────────────────────►│
+     │                                         │ Auth token
+     │                                         │ Validate intent
+     │                                         │ Policy check
+     │                                         │ Sign & execute via wallet layer
+     │  { status: "executed", result: {...} }  │
+     │◄────────────────────────────────────────│
+```
+
+**Components**:
+
+| File | Purpose |
+|------|---------|
+| `agentRegistry.ts` | Registration, auth tokens, agent lifecycle |
+| `walletBinder.ts` | 1:1 wallet creation and binding |
+| `intentRouter.ts` | Intent validation, rate limiting, execution dispatch |
+| `agentAdapter.ts` | Communication with local/remote agents |
+
+**Key Properties**:
+- External agents never receive private keys
+- Intents are validated against the policy engine
+- Rate limiting prevents abuse (30 intents/min per agent)
+- Control tokens are stored as SHA-256 hashes
+- 1 agent = 1 wallet (enforced at the binder level)
 
 ## Intent System
 

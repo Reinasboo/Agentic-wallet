@@ -1,0 +1,412 @@
+/**
+ * Intent Router
+ *
+ * Accepts high-level intents from external (BYOA) agents, validates them,
+ * converts them into the canonical internal `Intent` format, and executes
+ * them through the existing wallet + RPC layers.
+ *
+ * External agents NEVER submit raw transactions — they submit intents such
+ * as REQUEST_AIRDROP, TRANSFER_SOL, QUERY_BALANCE.
+ *
+ * SECURITY:
+ * - Authenticates via control token (bearer)
+ * - Validates the intent is in the agent's supported set
+ * - Enforces rate limits per agent
+ * - Delegates policy validation to WalletManager
+ * - Routes execution through existing wallet layer (signing stays internal)
+ */
+
+import { v4 as uuidv4 } from 'uuid';
+import { PublicKey } from '@solana/web3.js';
+import { createLogger } from '../utils/logger.js';
+import { Result, success, failure, Intent, BalanceInfo } from '../utils/types.js';
+import { getWalletManager, WalletManager } from '../wallet/index.js';
+import { getSolanaClient, buildSolTransfer, SolanaClient } from '../rpc/index.js';
+import { getAgentRegistry, AgentRegistry, ExternalAgentRecord, SupportedIntentType } from './agentRegistry.js';
+import { eventBus } from '../orchestrator/event-emitter.js';
+
+const logger = createLogger('BYOA_INTENT');
+
+// ────────────────────────────────────────────
+// External intent payload (what the caller sends)
+// ────────────────────────────────────────────
+
+export interface ExternalIntent {
+  readonly type: SupportedIntentType;
+  readonly params: Record<string, unknown>;
+}
+
+export interface IntentResult {
+  readonly intentId: string;
+  readonly status: 'executed' | 'rejected';
+  readonly type: SupportedIntentType;
+  readonly agentId: string;
+  readonly walletPublicKey: string;
+  readonly result?: Record<string, unknown>;
+  readonly error?: string;
+  readonly executedAt: Date;
+}
+
+// ────────────────────────────────────────────
+// Intent history record
+// ────────────────────────────────────────────
+
+export interface IntentHistoryRecord {
+  readonly intentId: string;
+  readonly agentId: string;
+  readonly type: SupportedIntentType;
+  readonly params: Record<string, unknown>;
+  readonly status: 'executed' | 'rejected';
+  readonly result?: Record<string, unknown>;
+  readonly error?: string;
+  readonly createdAt: Date;
+}
+
+// ────────────────────────────────────────────
+// Rate limiter (simple sliding-window)
+// ────────────────────────────────────────────
+
+class RateLimiter {
+  /** agentId → timestamps */
+  private windows: Map<string, number[]> = new Map();
+  private maxPerMinute: number;
+
+  constructor(maxPerMinute: number = 30) {
+    this.maxPerMinute = maxPerMinute;
+  }
+
+  check(agentId: string): boolean {
+    const now = Date.now();
+    const windowMs = 60_000;
+    let timestamps = this.windows.get(agentId) ?? [];
+    timestamps = timestamps.filter((t) => now - t < windowMs);
+    if (timestamps.length >= this.maxPerMinute) {
+      this.windows.set(agentId, timestamps);
+      return false;
+    }
+    timestamps.push(now);
+    this.windows.set(agentId, timestamps);
+    return true;
+  }
+}
+
+// ────────────────────────────────────────────
+// Intent Router
+// ────────────────────────────────────────────
+
+export class IntentRouter {
+  private registry: AgentRegistry;
+  private walletManager: WalletManager;
+  private solanaClient: SolanaClient;
+  private rateLimiter: RateLimiter;
+  private history: IntentHistoryRecord[] = [];
+  private maxHistory: number = 5000;
+
+  constructor() {
+    this.registry = getAgentRegistry();
+    this.walletManager = getWalletManager();
+    this.solanaClient = getSolanaClient();
+    this.rateLimiter = new RateLimiter(30);
+  }
+
+  /**
+   * Submit an intent using a bearer control token.
+   * This is the primary entry-point for external agents.
+   */
+  async submitIntent(
+    controlToken: string,
+    externalIntent: ExternalIntent,
+  ): Promise<Result<IntentResult, Error>> {
+    const intentId = uuidv4();
+    const createdAt = new Date();
+
+    // ── 1. Authenticate ────────────────────
+    const authResult = this.registry.authenticateToken(controlToken);
+    if (!authResult.ok) {
+      logger.warn('Intent rejected: authentication failed');
+      return failure(new Error('Authentication failed: ' + authResult.error.message));
+    }
+
+    const agent = authResult.value;
+
+    // ── 2. Check agent is active ───────────
+    if (agent.status !== 'active') {
+      return this.reject(intentId, agent.id, externalIntent, `Agent is not active (status: ${agent.status})`, createdAt);
+    }
+
+    // ── 3. Check wallet binding ────────────
+    if (!agent.walletId) {
+      return this.reject(intentId, agent.id, externalIntent, 'Agent has no bound wallet', createdAt);
+    }
+
+    // ── 4. Rate limit ──────────────────────
+    if (!this.rateLimiter.check(agent.id)) {
+      return this.reject(intentId, agent.id, externalIntent, 'Rate limit exceeded (max 30 intents/min)', createdAt);
+    }
+
+    // ── 5. Validate intent is supported ────
+    if (!agent.supportedIntents.includes(externalIntent.type)) {
+      return this.reject(intentId, agent.id, externalIntent, `Intent type "${externalIntent.type}" is not in this agent's supported set`, createdAt);
+    }
+
+    // ── 6. Execute ─────────────────────────
+    try {
+      const result = await this.executeIntent(agent, externalIntent, intentId);
+
+      const record: IntentHistoryRecord = {
+        intentId,
+        agentId: agent.id,
+        type: externalIntent.type,
+        params: externalIntent.params,
+        status: 'executed',
+        result: result,
+        createdAt,
+      };
+      this.pushHistory(record);
+
+      // Emit event for frontend / websocket
+      eventBus.emit({
+        id: uuidv4(),
+        type: 'agent_action',
+        timestamp: new Date(),
+        agentId: agent.id,
+        action: `byoa_intent:${externalIntent.type}`,
+        details: { intentId, params: externalIntent.params, result },
+      });
+
+      const intentResult: IntentResult = {
+        intentId,
+        status: 'executed',
+        type: externalIntent.type,
+        agentId: agent.id,
+        walletPublicKey: agent.walletPublicKey ?? '',
+        result,
+        executedAt: new Date(),
+      };
+
+      logger.info('BYOA intent executed', { intentId, agentId: agent.id, type: externalIntent.type });
+      return success(intentResult);
+
+    } catch (error) {
+      const errMsg = error instanceof Error ? error.message : String(error);
+      return this.reject(intentId, agent.id, externalIntent, errMsg, createdAt);
+    }
+  }
+
+  // ── Intent Execution Dispatch ────────────
+
+  private async executeIntent(
+    agent: ExternalAgentRecord,
+    ext: ExternalIntent,
+    intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const walletId = agent.walletId!;
+
+    switch (ext.type) {
+      case 'REQUEST_AIRDROP':
+        return this.executeAirdrop(walletId, ext.params, intentId);
+      case 'TRANSFER_SOL':
+        return this.executeTransferSol(walletId, agent.id, ext.params, intentId);
+      case 'QUERY_BALANCE':
+        return this.executeQueryBalance(walletId);
+      default:
+        throw new Error(`Unsupported intent type: ${ext.type}`);
+    }
+  }
+
+  // ── REQUEST_AIRDROP ──────────────────────
+
+  private async executeAirdrop(
+    walletId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const amount = typeof params['amount'] === 'number' ? params['amount'] : 1;
+    if (amount <= 0 || amount > 2) {
+      throw new Error('Airdrop amount must be between 0 and 2 SOL');
+    }
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    const airdropResult = await this.solanaClient.requestAirdrop(pubkeyResult.value, amount);
+    if (!airdropResult.ok) throw airdropResult.error;
+
+    // Emit transaction event
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(),
+        walletId,
+        type: 'airdrop',
+        status: 'confirmed',
+        amount,
+        signature: airdropResult.value.signature,
+        createdAt: new Date(),
+        confirmedAt: new Date(),
+      },
+    });
+
+    return { signature: airdropResult.value.signature, amount };
+  }
+
+  // ── TRANSFER_SOL ─────────────────────────
+
+  private async executeTransferSol(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
+    const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
+
+    if (amount <= 0) throw new Error('Transfer amount must be positive');
+    if (!recipient) throw new Error('Recipient address is required');
+
+    // Validate recipient address
+    let recipientPubkey: PublicKey;
+    try {
+      recipientPubkey = new PublicKey(recipient);
+    } catch {
+      throw new Error(`Invalid recipient address: ${recipient}`);
+    }
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    // Check balance
+    const balanceResult = await this.solanaClient.getBalance(pubkeyResult.value);
+    if (!balanceResult.ok) throw balanceResult.error;
+
+    // Build internal intent for policy validation
+    const internalIntent: Intent = {
+      id: uuidv4(),
+      agentId,
+      timestamp: new Date(),
+      type: 'transfer_sol',
+      recipient,
+      amount,
+    };
+
+    // Policy validation
+    const validResult = this.walletManager.validateIntent(walletId, internalIntent, balanceResult.value.sol);
+    if (!validResult.ok) throw validResult.error;
+
+    // Build transaction
+    const txResult = await buildSolTransfer(pubkeyResult.value, recipientPubkey, amount);
+    if (!txResult.ok) throw txResult.error;
+
+    // Sign via wallet layer (only place keys are touched)
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    // Send
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    // Emit transaction event
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_sol',
+        status: 'confirmed',
+        amount,
+        recipient,
+        signature: sendResult.value.signature,
+        createdAt: new Date(),
+        confirmedAt: new Date(),
+      },
+    });
+
+    return { signature: sendResult.value.signature, amount, recipient };
+  }
+
+  // ── QUERY_BALANCE ────────────────────────
+
+  private async executeQueryBalance(walletId: string): Promise<Record<string, unknown>> {
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    const balanceResult = await this.solanaClient.getBalance(pubkeyResult.value);
+    if (!balanceResult.ok) throw balanceResult.error;
+
+    const tokenResult = await this.solanaClient.getTokenBalances(pubkeyResult.value);
+    const tokens = tokenResult.ok ? tokenResult.value : [];
+
+    return {
+      sol: balanceResult.value.sol,
+      lamports: balanceResult.value.lamports.toString(),
+      tokenBalances: tokens,
+    };
+  }
+
+  // ── History ──────────────────────────────
+
+  getIntentHistory(agentId?: string, limit: number = 100): IntentHistoryRecord[] {
+    let records = this.history;
+    if (agentId) {
+      records = records.filter((r) => r.agentId === agentId);
+    }
+    return records.slice(-limit);
+  }
+
+  // ── Internal helpers ─────────────────────
+
+  private reject(
+    intentId: string,
+    agentId: string,
+    ext: ExternalIntent,
+    reason: string,
+    createdAt: Date,
+  ): Result<IntentResult, Error> {
+    const record: IntentHistoryRecord = {
+      intentId,
+      agentId,
+      type: ext.type,
+      params: ext.params,
+      status: 'rejected',
+      error: reason,
+      createdAt,
+    };
+    this.pushHistory(record);
+
+    logger.warn('BYOA intent rejected', { intentId, agentId, type: ext.type, reason });
+
+    return success({
+      intentId,
+      status: 'rejected',
+      type: ext.type,
+      agentId,
+      walletPublicKey: '',
+      error: reason,
+      executedAt: new Date(),
+    });
+  }
+
+  private pushHistory(record: IntentHistoryRecord): void {
+    this.history.push(record);
+    if (this.history.length > this.maxHistory) {
+      this.history = this.history.slice(-this.maxHistory);
+    }
+  }
+}
+
+// ── Singleton ──────────────────────────────
+
+let routerInstance: IntentRouter | null = null;
+
+export function getIntentRouter(): IntentRouter {
+  if (!routerInstance) {
+    routerInstance = new IntentRouter();
+  }
+  return routerInstance;
+}

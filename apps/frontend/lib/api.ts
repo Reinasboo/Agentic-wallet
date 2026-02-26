@@ -12,6 +12,9 @@ import type {
   Transaction,
   SystemEvent,
   ApiResponse,
+  ExternalAgent,
+  ExternalAgentDetail,
+  IntentHistoryRecord,
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -137,4 +140,48 @@ export function createWebSocket(
   };
 
   return ws;
+}
+
+// ============================================
+// BYOA (Bring Your Own Agent) API
+// ============================================
+
+export async function getExternalAgents(): Promise<ApiResponse<ExternalAgent[]>> {
+  return fetchApi('/api/byoa/agents');
+}
+
+export async function getExternalAgent(
+  id: string
+): Promise<ApiResponse<ExternalAgentDetail>> {
+  return fetchApi(`/api/byoa/agents/${id}`);
+}
+
+export async function getExternalIntents(
+  agentId?: string,
+  limit?: number
+): Promise<ApiResponse<IntentHistoryRecord[]>> {
+  if (agentId) {
+    const params = limit ? `?limit=${limit}` : '';
+    return fetchApi(`/api/byoa/agents/${agentId}/intents${params}`);
+  }
+  const params = limit ? `?limit=${limit}` : '';
+  return fetchApi(`/api/byoa/intents${params}`);
+}
+
+export async function deactivateExternalAgent(
+  id: string
+): Promise<ApiResponse<void>> {
+  return fetchApi(`/api/byoa/agents/${id}/deactivate`, { method: 'POST' });
+}
+
+export async function activateExternalAgent(
+  id: string
+): Promise<ApiResponse<void>> {
+  return fetchApi(`/api/byoa/agents/${id}/activate`, { method: 'POST' });
+}
+
+export async function revokeExternalAgent(
+  id: string
+): Promise<ApiResponse<void>> {
+  return fetchApi(`/api/byoa/agents/${id}/revoke`, { method: 'POST' });
 }

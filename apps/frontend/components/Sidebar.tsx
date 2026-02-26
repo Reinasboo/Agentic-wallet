@@ -14,6 +14,7 @@ import {
   LayoutDashboard,
   Bot,
   ArrowRightLeft,
+  Plug,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +28,11 @@ const navItems = [
     name: 'Agents',
     href: '/agents',
     icon: Bot,
+  },
+  {
+    name: 'Connected Agents',
+    href: '/connected-agents',
+    icon: Plug,
   },
   {
     name: 'Transactions',

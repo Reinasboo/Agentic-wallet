@@ -5,7 +5,7 @@
  * Keys are encrypted at rest and only decrypted when signing.
  */
 
-import { createCipheriv, createDecipheriv, randomBytes, scryptSync } from 'crypto';
+import { createCipheriv, createDecipheriv, randomBytes, scryptSync, timingSafeEqual } from 'crypto';
 
 const ALGORITHM = 'aes-256-gcm';
 const KEY_LENGTH = 32;
@@ -77,16 +77,18 @@ export function decrypt(encryptedData: string, passphrase: string): Uint8Array {
  * Securely compares two strings in constant time
  */
 export function secureCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) {
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+  
+  // Pad to equal length to avoid leaking length via timing
+  if (bufA.length !== bufB.length) {
+    // Compare bufA against itself so we still do constant-time work,
+    // then return false. Avoids leaking length difference via timing.
+    timingSafeEqual(bufA, bufA);
     return false;
   }
   
-  let result = 0;
-  for (let i = 0; i < a.length; i++) {
-    result |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  }
-  
-  return result === 0;
+  return timingSafeEqual(bufA, bufB);
 }
 
 /**

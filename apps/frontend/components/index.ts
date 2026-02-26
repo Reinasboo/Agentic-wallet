@@ -10,3 +10,5 @@ export { AgentList } from './AgentList';
 export { CreateAgentModal } from './CreateAgentModal';
 export { ActivityFeed } from './ActivityFeed';
 export { TransactionList } from './TransactionList';
+export { ConnectedAgentsList } from './ConnectedAgentsList';
+export { IntentHistory } from './IntentHistory';

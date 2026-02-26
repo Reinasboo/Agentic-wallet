@@ -48,6 +48,7 @@ The core innovation is separating **decisions** from **execution**:
 ```
 Traditional: Agent → Wallet API → Sign → Broadcast
 Agentic:    Agent → Intent → Validation → Wallet → Execution
+BYOA:       External Agent → HTTP Intent → Auth → Validation → Wallet → Execution
 ```
 
 **Why This Matters:**
@@ -56,6 +57,61 @@ Agentic:    Agent → Intent → Validation → Wallet → Execution
 2. **Reversibility**: Intents can be reviewed or cancelled
 3. **Safety**: Policy validation happens at the intent boundary
 4. **Composability**: Intents can be batched, prioritized, or scheduled
+5. **Openness**: External agents integrate without touching keys
+
+### Why Intent-Based Control Is Safer Than Transaction Signing
+
+In a traditional model, an external agent that wants to interact with a wallet
+must either:
+- Hold the private key (catastrophic if leaked), or
+- Construct and submit signed transactions via a shared signing service
+
+Both approaches expose the signing capability to untrusted code. A bug or
+compromised dependency in the agent can drain the wallet.
+
+**Intent-based control inverts this model:**
+
+| | Transaction Signing | Intent-Based |
+|---|---|---|
+| Key location | Agent holds or accesses key | Platform holds key exclusively |
+| Attack surface | Agent code + all dependencies | Platform audit boundary only |
+| Policy enforcement | Client-side (bypassable) | Server-side (enforced) |
+| Composability | Low (raw bytes) | High (semantic intents) |
+| Rate limiting | Hard to enforce externally | Built-in at router level |
+| Revocation | Must rotate keys | Revoke token instantly |
+
+The intent is a **wish**, not a **command**. The platform decides whether and
+how to fulfill it. This is conceptually similar to OAuth scopes — a token grants
+limited, revocable capabilities rather than full account access.
+
+### How This Enables Agent Ecosystems
+
+With BYOA, any developer with an existing AI agent can:
+1. Register their agent (one API call)
+2. Receive a wallet address (no key material)
+3. Submit intents (semantic, validated)
+4. Observe execution (dashboard + API)
+
+This turns the Agentic Wallet into a **platform** rather than a **tool**:
+
+```
+┌────────────────────────┐
+│  Developer's LLM Agent │ ──┐
+└────────────────────────┘   │
+┌────────────────────────┐   │
+│  Trading Bot           │ ──┤
+└────────────────────────┘   │   ┌─────────────────────────┐
+┌────────────────────────┐   ├──►│  Agentic Wallet Platform │
+│  Treasury Automation   │ ──┤   │  (BYOA Integration)      │
+└────────────────────────┘   │   └─────────────────────────┘
+┌────────────────────────┐   │
+│  Custom Strategy Bot   │ ──┘
+└────────────────────────┘
+```
+
+Each external agent gets its own isolated wallet, its own policy constraints,
+and its own intent history — all observable through the dashboard but none
+capable of crossing isolation boundaries.
 
 ### Zero-Trust Agent Model
 
@@ -368,6 +424,9 @@ The wallet layer adds ~50ms overhead for secure key handling.
 - [ ] Advanced policy DSL
 - [ ] Transaction scheduling
 - [ ] Webhook notifications
+- [ ] BYOA: OAuth 2.0 token exchange for control tokens
+- [ ] BYOA: Per-agent custom policy configuration
+- [ ] BYOA: Batch intent submission
 
 ### Medium-Term
 
@@ -376,6 +435,8 @@ The wallet layer adds ~50ms overhead for secure key handling.
 - [ ] Multi-signature workflows
 - [ ] Hardware wallet integration
 - [ ] Mobile monitoring app
+- [ ] BYOA: Agent-to-agent intent forwarding
+- [ ] BYOA: Marketplace for agent strategies
 
 ### Long-Term
 

@@ -47,11 +47,17 @@ class Logger {
   }
 
   private sanitize(data: Record<string, unknown>): Record<string, unknown> {
-    const sensitiveKeys = ['secretKey', 'privateKey', 'secret', 'password', 'key', 'encryptedSecretKey'];
+    const sensitiveKeys = ['secretKey', 'privateKey', 'secret', 'password', 'encryptedSecretKey'];
+    // Keys that contain 'key' but are safe to log
+    const safeKeys = ['publicKey', 'publickey', 'walletPublicKey'];
     const result: Record<string, unknown> = {};
     
     for (const [key, value] of Object.entries(data)) {
-      if (sensitiveKeys.some(sk => key.toLowerCase().includes(sk.toLowerCase()))) {
+      const lowerKey = key.toLowerCase();
+      // Skip redaction for known-safe keys
+      if (safeKeys.some(sk => lowerKey === sk.toLowerCase())) {
+        result[key] = value;
+      } else if (sensitiveKeys.some(sk => lowerKey.includes(sk.toLowerCase()))) {
         result[key] = '[REDACTED]';
       } else if (typeof value === 'object' && value !== null) {
         result[key] = this.sanitize(value as Record<string, unknown>);

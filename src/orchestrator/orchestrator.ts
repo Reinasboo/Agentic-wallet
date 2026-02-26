@@ -28,6 +28,8 @@ import { createLogger } from '../utils/logger.js';
 import { getWalletManager, WalletManager } from '../wallet/index.js';
 import { getSolanaClient, buildSolTransfer, SolanaClient } from '../rpc/index.js';
 import { BaseAgent, AgentContext, createAgent } from '../agent/index.js';
+import { AccumulatorAgent } from '../agent/accumulator-agent.js';
+import { DistributorAgent } from '../agent/distributor-agent.js';
 import { eventBus } from './event-emitter.js';
 
 const logger = createLogger('ORCHESTRATOR');
@@ -35,6 +37,7 @@ const logger = createLogger('ORCHESTRATOR');
 interface ManagedAgent {
   agent: BaseAgent;
   intervalId?: NodeJS.Timeout;
+  cycleInProgress?: boolean; // Guard against overlapping async cycles
 }
 
 /**
@@ -45,6 +48,7 @@ export class Orchestrator {
   private walletManager: WalletManager;
   private solanaClient: SolanaClient;
   private transactions: TransactionRecord[] = [];
+  private readonly maxTransactions: number = 10000;
   private startTime: Date;
   private loopInterval: number;
   private maxAgents: number;
@@ -56,6 +60,33 @@ export class Orchestrator {
     this.startTime = new Date();
     this.loopInterval = config.AGENT_LOOP_INTERVAL_MS;
     this.maxAgents = config.MAX_AGENTS;
+    this.scheduleAgentDailyReset();
+  }
+
+  /**
+   * Reset daily counters on all agents at midnight.
+   * Without this, agent-level limits (airdropsToday, transfersToday)
+   * become permanent after one day.
+   */
+  private scheduleAgentDailyReset(): void {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const msUntilMidnight = tomorrow.getTime() - now.getTime();
+
+    setTimeout(() => {
+      for (const managed of this.agents.values()) {
+        const agent = managed.agent;
+        if (agent instanceof AccumulatorAgent) {
+          agent.resetDailyCounters();
+        } else if (agent instanceof DistributorAgent) {
+          agent.resetDailyCounters();
+        }
+      }
+      logger.info('Agent daily counters reset');
+      this.scheduleAgentDailyReset();
+    }, msUntilMidnight);
   }
 
   /**
@@ -166,11 +197,19 @@ export class Orchestrator {
     const managed = this.agents.get(agentId);
     if (!managed) return;
 
+    // Prevent overlapping cycles if previous cycle is still running
+    if (managed.cycleInProgress) {
+      logger.debug('Skipping cycle, previous still running', { agentId });
+      return;
+    }
+
     const { agent } = managed;
 
     if (agent.getStatus() === 'stopped') {
       return;
     }
+
+    managed.cycleInProgress = true;
 
     try {
       // Update status
@@ -209,6 +248,8 @@ export class Orchestrator {
         error: String(error),
       });
       agent.setStatus('error', String(error));
+    } finally {
+      managed.cycleInProgress = false;
     }
   }
 
@@ -322,6 +363,7 @@ export class Orchestrator {
     };
 
     this.transactions.push(txRecord);
+    this.trimTransactions();
 
     const result = await this.solanaClient.requestAirdrop(publicKeyResult.value, amount);
 
@@ -401,6 +443,7 @@ export class Orchestrator {
     };
 
     this.transactions.push(txRecord);
+    this.trimTransactions();
 
     // Build transaction
     const txResult = await buildSolTransfer(
@@ -469,6 +512,15 @@ export class Orchestrator {
           error,
         };
       }
+    }
+  }
+
+  /**
+   * Prevent unbounded growth of the transactions array
+   */
+  private trimTransactions(): void {
+    if (this.transactions.length > this.maxTransactions) {
+      this.transactions = this.transactions.slice(-this.maxTransactions);
     }
   }
 

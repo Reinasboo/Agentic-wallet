@@ -60,6 +60,17 @@ export function getConfig(): Config {
     throw new Error('This system is designed for devnet only. Mainnet is not supported for safety.');
   }
   
+  // Warn if using default encryption secret in production
+  if (
+    result.data.KEY_ENCRYPTION_SECRET === 'dev-secret-change-in-production' &&
+    process.env['NODE_ENV'] === 'production'
+  ) {
+    throw new Error(
+      'CRITICAL: Using default KEY_ENCRYPTION_SECRET in production. ' +
+      'Set a strong, unique KEY_ENCRYPTION_SECRET environment variable.'
+    );
+  }
+  
   cachedConfig = result.data;
   return cachedConfig;
 }

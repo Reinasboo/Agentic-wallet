@@ -4,7 +4,7 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as api from './api';
-import type { Agent, AgentDetail, SystemStats, SystemEvent, Transaction } from './types';
+import type { Agent, AgentDetail, SystemStats, SystemEvent, Transaction, ExternalAgent, ExternalAgentDetail, IntentHistoryRecord } from './types';
 
 // Hook for fetching agents
 export function useAgents(pollInterval: number = 5000) {
@@ -149,4 +149,93 @@ export function useTransactions(pollInterval: number = 5000) {
   }, [fetchTransactions, pollInterval]);
 
   return { transactions, loading, error, refetch: fetchTransactions };
+}
+
+// ============================================
+// BYOA Hooks
+// ============================================
+
+// Hook for fetching external (BYOA) agents
+export function useExternalAgents(pollInterval: number = 5000) {
+  const [agents, setAgents] = useState<ExternalAgent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchExternalAgents = useCallback(async () => {
+    const response = await api.getExternalAgents();
+    if (response.success && response.data) {
+      setAgents(response.data);
+      setError(null);
+    } else {
+      setError(response.error || 'Failed to fetch external agents');
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchExternalAgents();
+    const interval = setInterval(fetchExternalAgents, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchExternalAgents, pollInterval]);
+
+  return { agents, loading, error, refetch: fetchExternalAgents };
+}
+
+// Hook for fetching a single external agent
+export function useExternalAgent(id: string | null, pollInterval: number = 3000) {
+  const [data, setData] = useState<ExternalAgentDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchExternalAgent = useCallback(async () => {
+    if (!id) {
+      setData(null);
+      setLoading(false);
+      return;
+    }
+
+    const response = await api.getExternalAgent(id);
+    if (response.success && response.data) {
+      setData(response.data);
+      setError(null);
+    } else {
+      setError(response.error || 'Failed to fetch external agent');
+    }
+    setLoading(false);
+  }, [id]);
+
+  useEffect(() => {
+    setLoading(true);
+    fetchExternalAgent();
+    const interval = setInterval(fetchExternalAgent, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchExternalAgent, pollInterval]);
+
+  return { data, loading, error, refetch: fetchExternalAgent };
+}
+
+// Hook for fetching BYOA intent history
+export function useExternalIntents(agentId?: string, pollInterval: number = 5000) {
+  const [intents, setIntents] = useState<IntentHistoryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchIntents = useCallback(async () => {
+    const response = await api.getExternalIntents(agentId);
+    if (response.success && response.data) {
+      setIntents(response.data);
+      setError(null);
+    } else {
+      setError(response.error || 'Failed to fetch intents');
+    }
+    setLoading(false);
+  }, [agentId]);
+
+  useEffect(() => {
+    fetchIntents();
+    const interval = setInterval(fetchIntents, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchIntents, pollInterval]);
+
+  return { intents, loading, error, refetch: fetchIntents };
 }

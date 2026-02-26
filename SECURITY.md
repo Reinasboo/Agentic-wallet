@@ -116,25 +116,26 @@ return { type: 'transfer_sol', amount: 0.1, recipient: '...' }
 ┌─────────────────────────────────────────────────────────┐
 │                    UNTRUSTED ZONE                        │
 │                                                          │
-│  ┌─────────────┐       ┌─────────────┐                  │
-│  │  Frontend   │       │   Agent     │                  │
-│  │  (Browser)  │       │   Logic     │                  │
-│  └─────────────┘       └─────────────┘                  │
-│         │                     │                          │
-│         │ API (read-only)     │ Intent                  │
-│         ▼                     ▼                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐    │
+│  │  Frontend   │  │   Agent     │  │  External    │    │
+│  │  (Browser)  │  │   Logic     │  │  BYOA Agent  │    │
+│  └─────────────┘  └─────────────┘  └──────────────┘    │
+│         │                │                │              │
+│         │ API            │ Intent         │ Bearer Token │
+│         │ (read-only)    │                │ + Intent     │
+│         ▼                ▼                ▼              │
 ├─────────────────────────────────────────────────────────┤
 │                    TRUST BOUNDARY                        │
 ├─────────────────────────────────────────────────────────┤
 │                    TRUSTED ZONE                          │
 │                                                          │
-│  ┌─────────────┐       ┌─────────────┐                  │
-│  │   Policy    │       │   Wallet    │                  │
-│  │  Validator  │       │  Manager    │                  │
-│  └─────────────┘       └─────────────┘                  │
-│         │                     │                          │
-│         │                     │ Encrypted Keys          │
-│         ▼                     ▼                          │
+│  ┌─────────────┐  ┌─────────────┐  ┌──────────────┐    │
+│  │   Policy    │  │   Wallet    │  │  Integration │    │
+│  │  Validator  │  │  Manager    │  │  Layer       │    │
+│  └─────────────┘  └─────────────┘  └──────────────┘    │
+│         │                │                │              │
+│         │                │ Encrypted Keys │ Token hashes │
+│         ▼                ▼                ▼              │
 │  ┌─────────────────────────────────────────┐            │
 │  │              Secure Storage              │            │
 │  │         (AES-256-GCM encrypted)         │            │
@@ -142,6 +143,69 @@ return { type: 'transfer_sol', amount: 0.1, recipient: '...' }
 │                                                          │
 └─────────────────────────────────────────────────────────┘
 ```
+
+## BYOA (Bring Your Own Agent) Security Model
+
+### Why External Agents Cannot Access Keys
+
+The BYOA integration layer is designed so that external agents **never** hold or
+observe private key material. This is enforced at multiple levels:
+
+1. **Control Tokens ≠ Keys**: The control token authenticates intents but cannot
+   sign transactions. It is a bearer token only.
+2. **Intent Boundary**: External agents submit high-level intents
+   (`REQUEST_AIRDROP`, `TRANSFER_SOL`, `QUERY_BALANCE`), not raw transactions.
+   The platform converts intents to transactions internally.
+3. **Wallet Isolation**: Each external agent is bound to exactly one wallet.
+   An agent's token cannot access any other agent's wallet.
+4. **Token Storage**: Control tokens are immediately hashed (SHA-256) upon
+   registration. The raw token is returned once and never stored.
+
+### Intent-Based Isolation
+
+```
+External Agent                     Platform
+     │                                │
+     │  "I want to send 0.5 SOL      │
+     │   to address XYZ"             │
+     │───────────────────────────────►│
+     │                                │  1. Authenticate token
+     │                                │  2. Verify intent in supported set
+     │                                │  3. Rate limit check
+     │                                │  4. Policy validation (max amount, daily limit)
+     │                                │  5. Build transaction (RPC layer)
+     │                                │  6. Sign transaction (wallet layer - keys here only)
+     │                                │  7. Submit to Solana
+     │  { status: "executed",         │
+     │    signature: "abc..." }       │
+     │◄───────────────────────────────│
+```
+
+The external agent only sees:
+- ✓ Their wallet's public key
+- ✓ Their wallet's balance
+- ✓ Intent execution results (success/failure)
+
+They never see:
+- ✗ Private keys (encrypted, internal only)
+- ✗ Other agents' wallets
+- ✗ Raw transaction bytes
+- ✗ Encryption secrets
+
+### Rate Limiting
+
+BYOA intents are rate-limited per agent:
+- **30 intents per minute** per agent (sliding window)
+- **Daily transfer limits** enforced by the policy engine
+- **Maximum transfer amounts** per the wallet's policy
+
+### Revocation
+
+Agents can be permanently revoked via `POST /api/byoa/agents/:id/revoke`.
+Once revoked:
+- The token hash is deleted from the index
+- All subsequent intent submissions are rejected
+- The wallet remains but is no longer controllable
 
 ## Policy Engine
 
@@ -234,6 +298,11 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [x] Secure logging (redaction)
 - [x] Rate limiting (daily transfers)
 - [x] Balance minimums
+- [x] BYOA control token hashing (SHA-256)
+- [x] BYOA per-agent rate limiting (30/min)
+- [x] BYOA intent validation against supported set
+- [x] BYOA 1-wallet-per-agent isolation
+- [x] BYOA agent revocation
 
 ### Recommended for Production
 - [ ] HSM integration
