@@ -1,0 +1,8 @@
+/**
+ * Wallet Module Exports
+ * 
+ * This module provides secure wallet operations with a strict API boundary.
+ * Private keys are NEVER exported from this module.
+ */
+
+export { WalletManager, getWalletManager } from './wallet-manager.js';

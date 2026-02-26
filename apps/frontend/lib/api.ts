@@ -1,0 +1,140 @@
+/**
+ * API Client
+ * 
+ * Handles all API communication with the backend.
+ * The frontend is READ-ONLY for observing system state.
+ */
+
+import type {
+  Agent,
+  AgentDetail,
+  SystemStats,
+  Transaction,
+  SystemEvent,
+  ApiResponse,
+} from './types';
+
+const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+
+async function fetchApi<T>(
+  endpoint: string,
+  options?: RequestInit
+): Promise<ApiResponse<T>> {
+  try {
+    const response = await fetch(`${API_BASE}${endpoint}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        ...options?.headers,
+      },
+    });
+
+    const data = await response.json();
+    return data as ApiResponse<T>;
+  } catch (error) {
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+      timestamp: new Date().toISOString(),
+    };
+  }
+}
+
+// Health check
+export async function checkHealth(): Promise<ApiResponse<{ status: string }>> {
+  return fetchApi('/api/health');
+}
+
+// Stats
+export async function getStats(): Promise<ApiResponse<SystemStats>> {
+  return fetchApi('/api/stats');
+}
+
+// Agents
+export async function getAgents(): Promise<ApiResponse<Agent[]>> {
+  return fetchApi('/api/agents');
+}
+
+export async function getAgent(id: string): Promise<ApiResponse<AgentDetail>> {
+  return fetchApi(`/api/agents/${id}`);
+}
+
+export async function createAgent(data: {
+  name: string;
+  strategy: string;
+  strategyParams?: Record<string, unknown>;
+}): Promise<ApiResponse<Agent>> {
+  return fetchApi('/api/agents', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function startAgent(id: string): Promise<ApiResponse<void>> {
+  return fetchApi(`/api/agents/${id}/start`, {
+    method: 'POST',
+  });
+}
+
+export async function stopAgent(id: string): Promise<ApiResponse<void>> {
+  return fetchApi(`/api/agents/${id}/stop`, {
+    method: 'POST',
+  });
+}
+
+// Transactions
+export async function getTransactions(): Promise<ApiResponse<Transaction[]>> {
+  return fetchApi('/api/transactions');
+}
+
+// Events
+export async function getEvents(count?: number): Promise<ApiResponse<SystemEvent[]>> {
+  const params = count ? `?count=${count}` : '';
+  return fetchApi(`/api/events${params}`);
+}
+
+// Explorer URL
+export async function getExplorerUrl(
+  signature: string
+): Promise<ApiResponse<{ url: string }>> {
+  return fetchApi(`/api/explorer/${signature}`);
+}
+
+// WebSocket connection
+export function createWebSocket(
+  onMessage: (event: SystemEvent) => void,
+  onConnect?: () => void,
+  onDisconnect?: () => void
+): WebSocket | null {
+  if (typeof window === 'undefined') {
+    return null;
+  }
+
+  const wsUrl = process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:3002';
+  const ws = new WebSocket(wsUrl);
+
+  ws.onopen = () => {
+    console.log('WebSocket connected');
+    onConnect?.();
+  };
+
+  ws.onmessage = (event) => {
+    try {
+      const data = JSON.parse(event.data);
+      onMessage(data);
+    } catch (error) {
+      console.error('Failed to parse WebSocket message:', error);
+    }
+  };
+
+  ws.onclose = () => {
+    console.log('WebSocket disconnected');
+    onDisconnect?.();
+  };
+
+  ws.onerror = (error) => {
+    console.error('WebSocket error:', error);
+  };
+
+  return ws;
+}
