@@ -14,3 +14,15 @@ export {
   getAvailableStrategies,
   getStrategyDescription,
 } from './agent-factory.js';
+
+export {
+  getStrategyRegistry,
+  StrategyDefinition,
+  StrategyDefinitionDTO,
+  StrategyFieldDescriptor,
+  ExecutionSettings as StrategyExecutionSettings,
+  DEFAULT_EXECUTION_SETTINGS,
+  ExecutionSettingsSchema,
+} from './strategy-registry.js';
+export { BalanceGuardAgent } from './balance-guard-agent.js';
+export { ScheduledPayerAgent } from './scheduled-payer-agent.js';

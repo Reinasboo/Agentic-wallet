@@ -142,6 +142,61 @@ agent:
       parameters: []
 ```
 
+## dApp / Protocol Interaction Skills
+
+```yaml
+protocol_interactions:
+  spl_token_transfers:
+    description: "Agents can transfer SPL tokens between wallets via the Token Program"
+    program: "Token Program (SPL)"
+    program_id: "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+    intent_type: "transfer_token"
+    parameters:
+      - name: "mint"
+        type: "string"
+        format: "base58"
+        description: "SPL token mint address"
+      - name: "recipient"
+        type: "string"
+        format: "base58"
+        description: "Destination wallet address"
+      - name: "amount"
+        type: "number"
+        description: "Token amount (UI units)"
+    flow:
+      - "Agent creates transfer_token intent"
+      - "Orchestrator validates via policy engine"
+      - "TransactionBuilder.buildTokenTransfer() constructs instruction"
+      - "Memo instruction appended for on-chain audit"
+      - "Wallet layer signs; RPC layer submits"
+    available_to:
+      - "Built-in agents (via createTransferTokenIntent())"
+      - "BYOA agents (via TRANSFER_TOKEN intent)"
+
+  onchain_memo_logging:
+    description: "Agents attach verifiable on-chain memos to transactions via Memo Program v2"
+    program: "Memo Program v2"
+    program_id: "MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr"
+    behavior:
+      - "All SOL transfers include a memo instruction"
+      - "All SPL token transfers include a memo instruction"
+      - "Memos are atomic with the transfer (same transaction)"
+      - "Provides on-chain audit trail for agent activity"
+    implementation:
+      - "buildMemoInstruction(memo) in transaction-builder.ts"
+      - "buildMemoTransaction(payer, memo) in transaction-builder.ts"
+```
+
+## BYOA Supported Intent Types
+
+```yaml
+byoa_intents:
+  - REQUEST_AIRDROP
+  - TRANSFER_SOL
+  - TRANSFER_TOKEN
+  - QUERY_BALANCE
+```
+
 ## Agent Strategies
 
 ```yaml
@@ -195,6 +250,48 @@ strategies:
       - "Select next recipient"
       - "Transfer amountPerTransfer"
       - "Cycle through recipients"
+
+  balance_guard:
+    description: "Emergency-only airdrop when balance is critically low"
+    parameters:
+      criticalBalance:
+        type: "number"
+        default: 0.05
+        unit: "SOL"
+      airdropAmount:
+        type: "number"
+        default: 1.0
+        unit: "SOL"
+      maxAirdropsPerDay:
+        type: "number"
+        default: 3
+    behavior:
+      - "Check balance against criticalBalance"
+      - "If below, request airdrop"
+      - "Respect daily airdrop limit"
+      - "Otherwise remain idle"
+
+  scheduled_payer:
+    description: "Recurring single-recipient SOL payments"
+    parameters:
+      recipient:
+        type: "string"
+        format: "base58"
+      amount:
+        type: "number"
+        default: 0.01
+        unit: "SOL"
+      maxPaymentsPerDay:
+        type: "number"
+        default: 5
+      minBalanceToSend:
+        type: "number"
+        default: 0.05
+        unit: "SOL"
+    behavior:
+      - "Check if balance > minBalanceToSend + amount"
+      - "Transfer amount to recipient"
+      - "Respect daily payment limit"
 ```
 
 ## Policy Constraints
@@ -273,8 +370,23 @@ api:
       path: "/api/agents"
       body:
         name: "string"
-        strategy: "accumulator | distributor"
+        strategy: "string"  # any registered strategy name
+        strategyParams: "object?"  # validated by strategy registry
+        executionSettings:
+          cycleIntervalMs: "number?"  # default 30000
+          maxActionsPerDay: "number?"  # default 100
+          enabled: "boolean?"          # default true
+      response: "Agent"
+    
+    update_agent_config:
+      method: "PATCH"
+      path: "/api/agents/:id/config"
+      body:
         strategyParams: "object?"
+        executionSettings:
+          cycleIntervalMs: "number?"
+          maxActionsPerDay: "number?"
+          enabled: "boolean?"
       response: "Agent"
     
     start_agent:
@@ -296,6 +408,16 @@ api:
       query:
         count: "number?"
       response: "SystemEvent[]"
+    
+    list_strategies:
+      method: "GET"
+      path: "/api/strategies"
+      response: "StrategyDefinitionDTO[]"
+    
+    get_strategy:
+      method: "GET"
+      path: "/api/strategies/:name"
+      response: "StrategyDefinitionDTO"
 ```
 
 ## Event Types
@@ -345,11 +467,9 @@ type AgentStatus =
   | 'error'
   | 'stopped';
 
-type AgentStrategy = 
-  | 'accumulator'
-  | 'distributor'
-  | 'trader'
-  | 'custom';
+type AgentStrategy = string;
+  // Built-in: 'accumulator' | 'distributor' | 'balance_guard' | 'scheduled_payer'
+  // Custom strategies registered via Strategy Registry are also valid
 
 type TransactionStatus = 
   | 'pending'

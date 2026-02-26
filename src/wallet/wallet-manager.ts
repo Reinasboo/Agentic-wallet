@@ -198,6 +198,16 @@ export class WalletManager {
       return failure(new Error('Daily transfer limit exceeded'));
     }
     
+    // Autonomous intents bypass ALL policy checks — the agent has full control.
+    // Everything is still logged via intent history and transaction events.
+    if (intent.type === 'autonomous') {
+      logger.info('Autonomous intent — policy bypass', {
+        walletId,
+        action: (intent as import('../utils/types.js').AutonomousIntent).action,
+      });
+      return success(true);
+    }
+
     // Validate based on intent type
     if (intent.type === 'transfer_sol') {
       // Check max transfer amount
@@ -218,6 +228,28 @@ export class WalletManager {
       
       if (policy.blockedRecipients?.includes(intent.recipient)) {
         return failure(new Error('Recipient is blocked'));
+      }
+    }
+
+    if (intent.type === 'transfer_token') {
+      // Token transfers still need SOL for fees; enforce minimum balance
+      const balanceAfterFees = currentBalance - 0.01; // ATA creation + fee headroom
+      if (balanceAfterFees < policy.requireMinBalance) {
+        return failure(new Error(`Insufficient SOL for token transfer fees (min ${policy.requireMinBalance} SOL)`));
+      }
+
+      // Validate recipient
+      if (policy.allowedRecipients && !policy.allowedRecipients.includes(intent.recipient)) {
+        return failure(new Error('Recipient not in allowed list'));
+      }
+
+      if (policy.blockedRecipients?.includes(intent.recipient)) {
+        return failure(new Error('Recipient is blocked'));
+      }
+
+      // Validate amount
+      if (intent.amount <= 0) {
+        return failure(new Error('Token transfer amount must be positive'));
       }
     }
     

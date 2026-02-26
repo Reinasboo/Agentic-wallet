@@ -21,7 +21,7 @@ import { PublicKey } from '@solana/web3.js';
 import { createLogger } from '../utils/logger.js';
 import { Result, success, failure, Intent, BalanceInfo } from '../utils/types.js';
 import { getWalletManager, WalletManager } from '../wallet/index.js';
-import { getSolanaClient, buildSolTransfer, SolanaClient } from '../rpc/index.js';
+import { getSolanaClient, buildSolTransfer, buildTokenTransfer, SolanaClient } from '../rpc/index.js';
 import { getAgentRegistry, AgentRegistry, ExternalAgentRecord, SupportedIntentType } from './agentRegistry.js';
 import { eventBus } from '../orchestrator/event-emitter.js';
 
@@ -207,8 +207,12 @@ export class IntentRouter {
         return this.executeAirdrop(walletId, ext.params, intentId);
       case 'TRANSFER_SOL':
         return this.executeTransferSol(walletId, agent.id, ext.params, intentId);
+      case 'TRANSFER_TOKEN':
+        return this.executeTransferToken(walletId, agent.id, ext.params, intentId);
       case 'QUERY_BALANCE':
         return this.executeQueryBalance(walletId);
+      case 'AUTONOMOUS':
+        return this.executeAutonomous(walletId, agent.id, ext.params, intentId);
       default:
         throw new Error(`Unsupported intent type: ${ext.type}`);
     }
@@ -349,6 +353,262 @@ export class IntentRouter {
     };
   }
 
+  // ── TRANSFER_TOKEN ───────────────────────
+
+  private async executeTransferToken(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
+    const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
+    const mint = typeof params['mint'] === 'string' ? params['mint'] : '';
+
+    if (amount <= 0) throw new Error('Token transfer amount must be positive');
+    if (!recipient) throw new Error('Recipient address is required');
+    if (!mint) throw new Error('Token mint address is required');
+
+    // Validate addresses
+    let recipientPubkey: PublicKey;
+    let mintPubkey: PublicKey;
+    try {
+      recipientPubkey = new PublicKey(recipient);
+      mintPubkey = new PublicKey(mint);
+    } catch {
+      throw new Error(`Invalid address: recipient=${recipient}, mint=${mint}`);
+    }
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    // Check SOL balance (needed for fees)
+    const balanceResult = await this.solanaClient.getBalance(pubkeyResult.value);
+    if (!balanceResult.ok) throw balanceResult.error;
+
+    // Build policy validation intent
+    const internalIntent: Intent = {
+      id: uuidv4(),
+      agentId,
+      timestamp: new Date(),
+      type: 'transfer_token',
+      mint,
+      recipient,
+      amount,
+    };
+
+    const validResult = this.walletManager.validateIntent(walletId, internalIntent, balanceResult.value.sol);
+    if (!validResult.ok) throw validResult.error;
+
+    // Build SPL token transfer (includes Memo Program interaction)
+    const rawAmount = BigInt(Math.round(amount * 1e9));
+    const txResult = await buildTokenTransfer(
+      pubkeyResult.value,
+      mintPubkey,
+      recipientPubkey,
+      rawAmount,
+      9,
+      `AgenticWallet:byoa_token_transfer:${agentId}`,
+    );
+    if (!txResult.ok) throw txResult.error;
+
+    // Sign
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    // Send
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    // Emit transaction event
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_spl',
+        status: 'confirmed',
+        amount,
+        recipient,
+        mint,
+        signature: sendResult.value.signature,
+        createdAt: new Date(),
+        confirmedAt: new Date(),
+      },
+    });
+
+    return { signature: sendResult.value.signature, amount, recipient, mint };
+  }
+
+  // ── AUTONOMOUS ───────────────────────────
+
+  /**
+   * Execute an autonomous intent.
+   *
+   * The agent specifies a sub-action inside `params.action` and the matching
+   * parameters.  No wallet-policy restrictions are applied — the agent has
+   * unrestricted access.  Every action is still fully logged in intent
+   * history and emitted as a system event so the operator can audit.
+   */
+  private async executeAutonomous(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const action = typeof params['action'] === 'string' ? params['action'] : '';
+
+    logger.info('Autonomous intent executing', {
+      agentId,
+      intentId,
+      action,
+      params,
+    });
+
+    // Emit a dedicated event so operators can follow autonomous actions in
+    // real-time via WebSocket / activity feed.
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'agent_action',
+      timestamp: new Date(),
+      agentId,
+      action: `autonomous:${action}`,
+      details: { intentId, params },
+    });
+
+    switch (action) {
+      case 'airdrop':
+        return this.executeAirdrop(walletId, params, intentId);
+
+      case 'transfer_sol':
+        return this.executeAutonomousTransferSol(walletId, agentId, params, intentId);
+
+      case 'transfer_token':
+        return this.executeAutonomousTransferToken(walletId, agentId, params, intentId);
+
+      case 'query_balance':
+        return this.executeQueryBalance(walletId);
+
+      default:
+        throw new Error(
+          `Autonomous intent: unknown action "${action}". ` +
+          'Supported: airdrop, transfer_sol, transfer_token, query_balance',
+        );
+    }
+  }
+
+  /**
+   * Autonomous SOL transfer — identical to executeTransferSol but skips
+   * the wallet-policy validation step so nothing is blocked.
+   */
+  private async executeAutonomousTransferSol(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
+    const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
+
+    if (amount <= 0) throw new Error('Transfer amount must be positive');
+    if (!recipient) throw new Error('Recipient address is required');
+
+    let recipientPubkey: PublicKey;
+    try { recipientPubkey = new PublicKey(recipient); } catch { throw new Error(`Invalid recipient: ${recipient}`); }
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    // Build, sign, send — NO policy check
+    const txResult = await buildSolTransfer(
+      pubkeyResult.value, recipientPubkey, amount,
+      `AgenticWallet:autonomous:${agentId}`,
+    );
+    if (!txResult.ok) throw txResult.error;
+
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(), walletId, type: 'transfer_sol', status: 'confirmed',
+        amount, recipient, signature: sendResult.value.signature,
+        createdAt: new Date(), confirmedAt: new Date(),
+      },
+    });
+
+    return { signature: sendResult.value.signature, amount, recipient, autonomous: true };
+  }
+
+  /**
+   * Autonomous token transfer — skips wallet-policy validation.
+   */
+  private async executeAutonomousTransferToken(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
+    const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
+    const mint = typeof params['mint'] === 'string' ? params['mint'] : '';
+
+    if (amount <= 0) throw new Error('Token transfer amount must be positive');
+    if (!recipient) throw new Error('Recipient address is required');
+    if (!mint) throw new Error('Token mint address is required');
+
+    let recipientPubkey: PublicKey;
+    let mintPubkey: PublicKey;
+    try {
+      recipientPubkey = new PublicKey(recipient);
+      mintPubkey = new PublicKey(mint);
+    } catch { throw new Error(`Invalid address: recipient=${recipient}, mint=${mint}`); }
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    // Build SPL token transfer — NO policy check
+    const rawAmount = BigInt(Math.round(amount * 1e9));
+    const txResult = await buildTokenTransfer(
+      pubkeyResult.value, mintPubkey, recipientPubkey, rawAmount, 9,
+      `AgenticWallet:autonomous_token:${agentId}`,
+    );
+    if (!txResult.ok) throw txResult.error;
+
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(), walletId, type: 'transfer_spl', status: 'confirmed',
+        amount, recipient, mint, signature: sendResult.value.signature,
+        createdAt: new Date(), confirmedAt: new Date(),
+      },
+    });
+
+    return { signature: sendResult.value.signature, amount, recipient, mint, autonomous: true };
+  }
+
   // ── History ──────────────────────────────
 
   getIntentHistory(agentId?: string, limit: number = 100): IntentHistoryRecord[] {
@@ -390,6 +650,14 @@ export class IntentRouter {
       error: reason,
       executedAt: new Date(),
     });
+  }
+
+  /**
+   * Public method for external callers (e.g. Orchestrator) to record
+   * intent history entries for built-in agents.
+   */
+  recordIntent(record: IntentHistoryRecord): void {
+    this.pushHistory(record);
   }
 
   private pushHistory(record: IntentHistoryRecord): void {

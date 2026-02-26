@@ -2,12 +2,16 @@
  * Agent Factory
  * 
  * Creates agents based on strategy type and configuration.
+ * Uses the strategy registry for validation and supported strategy discovery.
  */
 
 import { BaseAgent } from './base-agent.js';
 import { AccumulatorAgent, AccumulatorParams } from './accumulator-agent.js';
 import { DistributorAgent, DistributorParams } from './distributor-agent.js';
+import { BalanceGuardAgent, BalanceGuardParams } from './balance-guard-agent.js';
+import { ScheduledPayerAgent, ScheduledPayerParams } from './scheduled-payer-agent.js';
 import { AgentStrategy, AgentConfig, Result, success, failure } from '../utils/types.js';
+import { getStrategyRegistry } from './strategy-registry.js';
 import { createLogger } from '../utils/logger.js';
 
 const logger = createLogger('AGENT_FACTORY');
@@ -23,12 +27,27 @@ export interface CreateAgentOptions {
  */
 export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Error> {
   const { config, walletId, walletPublicKey } = options;
+  const registry = getStrategyRegistry();
 
   logger.info('Creating agent', {
     name: config.name,
     strategy: config.strategy,
     walletId,
   });
+
+  // Validate strategy is registered
+  if (!registry.has(config.strategy)) {
+    return failure(new Error(`Unknown strategy: ${config.strategy}`));
+  }
+
+  // Validate params against schema
+  const params = config.strategyParams ?? {};
+  const validation = registry.validateParams(config.strategy, params);
+  if (!validation.ok) {
+    return failure(new Error(`Invalid strategy params: ${validation.error}`));
+  }
+
+  const validatedParams = validation.value;
 
   try {
     let agent: BaseAgent;
@@ -39,7 +58,7 @@ export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Erro
           config.name,
           walletId,
           walletPublicKey,
-          config.strategyParams as Partial<AccumulatorParams>
+          validatedParams as unknown as Partial<AccumulatorParams>,
         );
         break;
 
@@ -48,20 +67,35 @@ export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Erro
           config.name,
           walletId,
           walletPublicKey,
-          config.strategyParams as Partial<DistributorParams>
+          validatedParams as unknown as Partial<DistributorParams>,
         );
         break;
 
-      case 'trader':
-        // Trader agent - future implementation
-        return failure(new Error('Trader strategy not yet implemented'));
+      case 'balance_guard':
+        agent = new BalanceGuardAgent(
+          config.name,
+          walletId,
+          walletPublicKey,
+          validatedParams as unknown as Partial<BalanceGuardParams>,
+        );
+        break;
 
-      case 'custom':
-        // Custom agents require special handling
-        return failure(new Error('Custom strategy requires direct agent instantiation'));
+      case 'scheduled_payer':
+        agent = new ScheduledPayerAgent(
+          config.name,
+          walletId,
+          walletPublicKey,
+          validatedParams as unknown as Partial<ScheduledPayerParams>,
+        );
+        break;
 
       default:
-        return failure(new Error(`Unknown strategy: ${config.strategy}`));
+        return failure(new Error(`Strategy "${config.strategy}" is registered but has no agent implementation`));
+    }
+
+    // Apply execution settings if provided
+    if (config.executionSettings) {
+      agent.updateExecutionSettings(config.executionSettings);
     }
 
     logger.info('Agent created successfully', {
@@ -83,24 +117,14 @@ export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Erro
 /**
  * Get available strategies
  */
-export function getAvailableStrategies(): AgentStrategy[] {
-  return ['accumulator', 'distributor'];
+export function getAvailableStrategies(): string[] {
+  return getStrategyRegistry().list();
 }
 
 /**
  * Get strategy description
  */
 export function getStrategyDescription(strategy: AgentStrategy): string {
-  switch (strategy) {
-    case 'accumulator':
-      return 'Automatically requests airdrops to maintain minimum balance';
-    case 'distributor':
-      return 'Distributes SOL to configured recipients';
-    case 'trader':
-      return 'Executes trades based on market conditions (not implemented)';
-    case 'custom':
-      return 'Custom strategy with user-defined logic';
-    default:
-      return 'Unknown strategy';
-  }
+  const def = getStrategyRegistry().get(strategy);
+  return def?.description ?? 'Unknown strategy';
 }

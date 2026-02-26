@@ -9,7 +9,7 @@
 
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
-import { useStats, useWebSocket } from '@/lib/hooks';
+import { useStats, useWebSocket, useHealth } from '@/lib/hooks';
 import { formatUptime } from '@/lib/utils';
 
 interface HeaderProps {
@@ -20,6 +20,7 @@ interface HeaderProps {
 export function Header({ title, subtitle }: HeaderProps) {
   const { stats } = useStats();
   const { connected } = useWebSocket();
+  const { healthy } = useHealth();
 
   return (
     <header className="py-8 px-8 lg:px-12">
@@ -45,13 +46,24 @@ export function Header({ title, subtitle }: HeaderProps) {
 
         {/* Status indicators - subtle, right-aligned */}
         <div className="flex items-center gap-6 text-caption text-text-tertiary">
-          {/* Connection status */}
+          {/* Backend health */}
+          {healthy !== null && (
+            <div className="flex items-center gap-2">
+              <span className={cn(
+                'w-1.5 h-1.5 rounded-full',
+                healthy ? 'bg-status-success' : 'bg-status-error'
+              )} />
+              <span>{healthy ? 'Healthy' : 'Degraded'}</span>
+            </div>
+          )}
+
+          {/* WebSocket connection status */}
           <div className="flex items-center gap-2">
             <span className={cn(
               'w-1.5 h-1.5 rounded-full',
               connected ? 'bg-status-success' : 'bg-status-error'
             )} />
-            <span>{connected ? 'Connected' : 'Offline'}</span>
+            <span>{connected ? 'Live' : 'Offline'}</span>
           </div>
 
           {/* Network */}

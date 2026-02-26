@@ -4,7 +4,75 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as api from './api';
-import type { Agent, AgentDetail, SystemStats, SystemEvent, Transaction, ExternalAgent, ExternalAgentDetail, IntentHistoryRecord } from './types';
+import type { Agent, AgentDetail, SystemStats, SystemEvent, Transaction, ExternalAgent, ExternalAgentDetail, IntentHistoryRecord, StrategyDefinition } from './types';
+
+// Hook for fetching available strategies
+export function useStrategies() {
+  const [strategies, setStrategies] = useState<StrategyDefinition[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchStrategies = useCallback(async () => {
+    const response = await api.getStrategies();
+    if (response.success && response.data) {
+      setStrategies(response.data);
+      setError(null);
+    } else {
+      setError(response.error || 'Failed to fetch strategies');
+    }
+    setLoading(false);
+  }, []);
+
+  useEffect(() => {
+    fetchStrategies();
+  }, [fetchStrategies]);
+
+  return { strategies, loading, error, refetch: fetchStrategies };
+}
+
+// Hook for health check
+export function useHealth(pollInterval: number = 15000) {
+  const [healthy, setHealthy] = useState<boolean | null>(null);
+
+  const fetchHealth = useCallback(async () => {
+    const response = await api.checkHealth();
+    setHealthy(response.success && response.data?.status === 'healthy');
+  }, []);
+
+  useEffect(() => {
+    fetchHealth();
+    const interval = setInterval(fetchHealth, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchHealth, pollInterval]);
+
+  return { healthy };
+}
+
+// Hook for fetching events (REST fallback)
+export function useEvents(count: number = 100, pollInterval: number = 5000) {
+  const [events, setEvents] = useState<SystemEvent[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchEvents = useCallback(async () => {
+    const response = await api.getEvents(count);
+    if (response.success && response.data) {
+      setEvents(response.data);
+      setError(null);
+    } else {
+      setError(response.error || 'Failed to fetch events');
+    }
+    setLoading(false);
+  }, [count]);
+
+  useEffect(() => {
+    fetchEvents();
+    const interval = setInterval(fetchEvents, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchEvents, pollInterval]);
+
+  return { events, loading, error, refetch: fetchEvents };
+}
 
 // Hook for fetching agents
 export function useAgents(pollInterval: number = 5000) {
@@ -230,6 +298,32 @@ export function useExternalIntents(agentId?: string, pollInterval: number = 5000
     }
     setLoading(false);
   }, [agentId]);
+
+  useEffect(() => {
+    fetchIntents();
+    const interval = setInterval(fetchIntents, pollInterval);
+    return () => clearInterval(interval);
+  }, [fetchIntents, pollInterval]);
+
+  return { intents, loading, error, refetch: fetchIntents };
+}
+
+// Hook for fetching ALL intent history (built-in + BYOA agents)
+export function useAllIntentHistory(pollInterval: number = 5000) {
+  const [intents, setIntents] = useState<IntentHistoryRecord[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const fetchIntents = useCallback(async () => {
+    const response = await api.getAllIntentHistory();
+    if (response.success && response.data) {
+      setIntents(response.data);
+      setError(null);
+    } else {
+      setError(response.error || 'Failed to fetch intent history');
+    }
+    setLoading(false);
+  }, []);
 
   useEffect(() => {
     fetchIntents();

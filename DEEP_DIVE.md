@@ -305,20 +305,50 @@ Full Production Stack
 
 ### Custom Strategies
 
-Implement new agent strategies by extending `BaseAgent`:
+New agent strategies are added via the **Strategy Registry** — no code changes
+to the orchestrator or API layer required:
 
 ```typescript
+import { getStrategyRegistry } from './agent/strategy-registry';
+import { z } from 'zod';
+
+// 1. Define the parameter schema
+const MyParamSchema = z.object({
+  threshold: z.number().min(0).default(1.0),
+  recipients: z.array(z.string()).default([]),
+});
+
+// 2. Register the strategy
+getStrategyRegistry().register({
+  name: 'my_custom_strategy',
+  label: 'My Custom Strategy',
+  description: 'Does something useful',
+  supportedIntents: ['transfer_sol', 'check_balance'],
+  paramSchema: MyParamSchema,
+  defaultParams: { threshold: 1.0, recipients: [] },
+  fields: [
+    { key: 'threshold', label: 'Threshold', type: 'number', default: 1.0,
+      description: 'Trigger threshold in SOL' },
+    { key: 'recipients', label: 'Recipients', type: 'string[]', default: [],
+      description: 'Comma-separated wallet addresses' },
+  ],
+  builtIn: false,
+  icon: 'Zap',
+  category: 'custom',
+});
+
+// 3. Implement the agent
 class MyCustomAgent extends BaseAgent {
   async think(context: AgentContext): Promise<AgentDecision> {
-    // Your decision logic here
-    return {
-      action: 'execute',
-      intents: [...],
-      reasoning: 'My custom reasoning'
-    };
+    // Your decision logic here — registry-validated params
+    // are available as this.strategyParams
+    return { action: 'execute', intents: [...], reasoning: '...' };
   }
 }
 ```
+
+The front-end Strategy Browser page picks up the new strategy automatically
+from `GET /api/strategies` and renders its fields in the agent creation wizard.
 
 ### Policy Modules
 
@@ -415,10 +445,98 @@ The wallet layer adds ~50ms overhead for secure key handling.
 
 ---
 
+## dApp / Protocol Interactions
+
+The Agentic Wallet System goes beyond basic SOL transfers — it interacts with
+multiple deployed Solana programs, demonstrating real dApp/protocol composability.
+
+### Programs Used
+
+| Program | Address | Purpose |
+|---------|---------|--------|
+| SystemProgram | `11111111111111111111111111111111` | Native SOL transfers |
+| Token Program (SPL) | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | SPL token transfers |
+| Memo Program v2 | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | On-chain memo logging |
+
+### Memo Program Integration
+
+Every SOL and SPL token transfer includes an on-chain memo instruction via
+Solana's **Memo Program v2** (`MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`).
+This provides a verifiable, on-chain audit trail for all agent activity.
+
+The integration lives in `src/rpc/transaction-builder.ts`:
+
+- **`buildMemoInstruction(memo: string)`** — creates a `TransactionInstruction`
+  targeting the Memo Program with the given text as data.
+- **`buildMemoTransaction(payer, memo)`** — wraps the instruction into a
+  ready-to-sign `Transaction`.
+
+Memos are appended as an additional instruction to transfer transactions, so a
+single atomic transaction contains both the value transfer and its memo. This
+means the memo is only recorded if the transfer itself succeeds.
+
+### SPL Token Transfer Flow
+
+The `TRANSFER_TOKEN` (or `transfer_token`) intent type enables agents to move
+SPL tokens between wallets. The full flow:
+
+```
+Agent.createTransferTokenIntent(mint, recipient, amount)
+        │
+        ▼
+  Orchestrator.executeTokenTransfer()
+        │  case 'transfer_token' in intent switch
+        ▼
+  WalletManager.validateIntent()          ← same policy checks as transfer_sol
+        │
+        ▼
+  TransactionBuilder.buildTokenTransfer() ← uses @solana/spl-token
+        │  + buildMemoInstruction()        ← attaches on-chain memo
+        ▼
+  WalletManager.signTransaction()         ← keys decrypted momentarily
+        │
+        ▼
+  SolanaClient.sendTransaction()          ← submitted to Solana
+        │
+        ▼
+  Confirmation + Event emission
+```
+
+Key implementation touchpoints:
+
+| Layer | File | Change |
+|-------|------|--------|
+| Agent | `base-agent.ts` | `createTransferTokenIntent()` helper |
+| Orchestrator | `orchestrator.ts` | `executeTokenTransfer()` method, `case 'transfer_token'` |
+| Wallet | `wallet-manager.ts` | `validateIntent()` handles `transfer_token` |
+| RPC | `transaction-builder.ts` | `buildTokenTransfer()` + `buildMemoInstruction()` |
+| Integration | `agentRegistry.ts` | `TRANSFER_TOKEN` in `SupportedIntentType` |
+| Integration | `intentRouter.ts` | `executeTransferToken()` for BYOA agents |
+| Server | `server.ts` | `TRANSFER_TOKEN` in Zod schemas |
+| Strategy | `strategy-registry.ts` | Distributor & ScheduledPayer support `transfer_token` |
+| Frontend | types, pages | `TRANSFER_TOKEN` in UI types, BYOA register, IntentHistory |
+
+### BYOA and Token Transfers
+
+External agents registered via BYOA can submit `TRANSFER_TOKEN` intents just
+like `TRANSFER_SOL`. The intent is authenticated, validated against the policy
+engine, and executed through the same secure pipeline — the external agent never
+touches private keys or constructs raw transactions.
+
+---
+
 ## Future Directions
 
 ### Near-Term
 
+- [x] Strategy Registry with runtime extensibility
+- [x] Per-agent execution settings (cycle interval, max actions, pause/resume)
+- [x] Dynamic agent configuration via API (`PATCH /api/agents/:id/config`)
+- [x] Two additional built-in strategies (Balance Guard, Scheduled Payer)
+- [x] Frontend: Strategy Browser page
+- [x] Frontend: Multi-step agent creation wizard
+- [x] Frontend: Agent settings panel (inline config editing)
+- [x] Frontend: BYOA registration page with one-time token UX
 - [ ] PostgreSQL adapter for persistent storage
 - [ ] Multi-wallet agent support
 - [ ] Advanced policy DSL
@@ -436,7 +554,7 @@ The wallet layer adds ~50ms overhead for secure key handling.
 - [ ] Hardware wallet integration
 - [ ] Mobile monitoring app
 - [ ] BYOA: Agent-to-agent intent forwarding
-- [ ] BYOA: Marketplace for agent strategies
+- [x] BYOA: Marketplace for agent strategies (Strategy Browser)
 
 ### Long-Term
 

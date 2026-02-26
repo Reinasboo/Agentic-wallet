@@ -12,3 +12,4 @@ export { ActivityFeed } from './ActivityFeed';
 export { TransactionList } from './TransactionList';
 export { ConnectedAgentsList } from './ConnectedAgentsList';
 export { IntentHistory } from './IntentHistory';
+export { AgentSettingsPanel } from './AgentSettingsPanel';

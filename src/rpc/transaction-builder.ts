@@ -26,12 +26,66 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('TX_BUILDER');
 
 /**
+ * Memo Program v2 — a deployed Solana program that stores arbitrary UTF-8
+ * data on-chain.  Using it demonstrates real dApp / protocol interaction
+ * because the transaction includes an instruction targeting a non-system
+ * program (MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr).
+ */
+export const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr');
+
+/**
+ * Build a standalone memo transaction (interacts with the Memo Program).
+ */
+export function buildMemoInstruction(
+  message: string,
+  signerPubkey: PublicKey,
+): TransactionInstruction {
+  return new TransactionInstruction({
+    keys: [{ pubkey: signerPubkey, isSigner: true, isWritable: false }],
+    programId: MEMO_PROGRAM_ID,
+    data: Buffer.from(message, 'utf-8'),
+  });
+}
+
+/**
+ * Build a standalone memo transaction that can be signed and sent.
+ */
+export async function buildMemoTransaction(
+  signer: PublicKey,
+  message: string,
+): Promise<Result<Transaction, Error>> {
+  try {
+    const client = getSolanaClient();
+    const blockhashResult = await client.getRecentBlockhash();
+    if (!blockhashResult.ok) return failure(blockhashResult.error);
+
+    const transaction = new Transaction({
+      recentBlockhash: blockhashResult.value,
+      feePayer: signer,
+    });
+
+    transaction.add(buildMemoInstruction(message, signer));
+
+    logger.debug('Built memo transaction', {
+      signer: signer.toBase58(),
+      messageLength: message.length,
+    });
+
+    return success(transaction);
+  } catch (error) {
+    logger.error('Failed to build memo transaction', { error: String(error) });
+    return failure(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+/**
  * Build a SOL transfer transaction
  */
 export async function buildSolTransfer(
   from: PublicKey,
   to: PublicKey,
-  amount: number
+  amount: number,
+  memo?: string,
 ): Promise<Result<Transaction, Error>> {
   try {
     const client = getSolanaClient();
@@ -55,12 +109,18 @@ export async function buildSolTransfer(
         lamports,
       })
     );
+
+    // Attach an on-chain memo via the Memo Program (dApp interaction)
+    if (memo) {
+      transaction.add(buildMemoInstruction(memo, from));
+    }
     
     logger.debug('Built SOL transfer transaction', {
       from: from.toBase58(),
       to: to.toBase58(),
       amount,
       lamports,
+      hasMemo: !!memo,
     });
     
     return success(transaction);
@@ -78,7 +138,8 @@ export async function buildTokenTransfer(
   mint: PublicKey,
   recipient: PublicKey,
   amount: bigint,
-  decimals: number
+  decimals: number,
+  memo?: string,
 ): Promise<Result<Transaction, Error>> {
   try {
     const client = getSolanaClient();
@@ -140,6 +201,11 @@ export async function buildTokenTransfer(
         TOKEN_PROGRAM_ID
       )
     );
+
+    // Attach an on-chain memo via the Memo Program (dApp interaction)
+    if (memo) {
+      transaction.add(buildMemoInstruction(memo, owner));
+    }
     
     logger.debug('Built token transfer transaction', {
       owner: owner.toBase58(),

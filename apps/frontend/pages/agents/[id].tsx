@@ -23,7 +23,7 @@ import {
   Activity,
   RefreshCw,
 } from 'lucide-react';
-import { Sidebar, Header, TransactionList, ActivityFeed } from '@/components';
+import { Sidebar, Header, TransactionList, ActivityFeed, AgentSettingsPanel } from '@/components';
 import { useAgent } from '@/lib/hooks';
 import * as api from '@/lib/api';
 import {
@@ -277,6 +277,9 @@ export default function AgentDetailPage() {
                 )}
               </motion.div>
             </div>
+
+            {/* Agent Settings Panel */}
+            <AgentSettingsPanel agent={agent} onUpdated={refetch} />
 
             {/* Token Balances */}
             {tokenBalances.length > 0 && (

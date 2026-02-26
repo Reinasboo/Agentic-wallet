@@ -13,11 +13,13 @@ export type AgentStatus =
   | 'error'
   | 'stopped';
 
-export type AgentStrategy = 
-  | 'accumulator'
-  | 'distributor'
-  | 'trader'
-  | 'custom';
+export type AgentStrategy = string;
+
+export interface ExecutionSettings {
+  cycleIntervalMs: number;
+  maxActionsPerDay: number;
+  enabled: boolean;
+}
 
 export type TransactionStatus = 
   | 'pending'
@@ -39,6 +41,8 @@ export interface Agent {
   walletId: string;
   walletPublicKey: string;
   strategy: AgentStrategy;
+  strategyParams?: Record<string, unknown>;
+  executionSettings?: ExecutionSettings;
   createdAt: string;
   lastActionAt?: string;
   errorMessage?: string;
@@ -109,7 +113,7 @@ export interface AgentDetail {
 
 export type ExternalAgentType = 'local' | 'remote';
 export type ExternalAgentStatus = 'registered' | 'active' | 'inactive' | 'revoked';
-export type SupportedIntentType = 'REQUEST_AIRDROP' | 'TRANSFER_SOL' | 'QUERY_BALANCE';
+export type SupportedIntentType = 'REQUEST_AIRDROP' | 'TRANSFER_SOL' | 'TRANSFER_TOKEN' | 'QUERY_BALANCE' | 'AUTONOMOUS';
 
 export interface ExternalAgent {
   id: string;
@@ -142,4 +146,45 @@ export interface ExternalAgentDetail {
   balance: number;
   tokenBalances: TokenBalance[];
   intents: IntentHistoryRecord[];
+}
+
+// ============================================
+// Strategy Types
+// ============================================
+
+export interface StrategyFieldDescriptor {
+  key: string;
+  label: string;
+  type: 'number' | 'string' | 'boolean' | 'string[]';
+  description?: string;
+  required: boolean;
+  default?: unknown;
+  min?: number;
+  max?: number;
+  placeholder?: string;
+}
+
+export interface StrategyDefinition {
+  name: string;
+  label: string;
+  description: string;
+  supportedIntents: string[];
+  defaultParams: Record<string, unknown>;
+  builtIn: boolean;
+  icon: string;
+  category: string;
+  fields: StrategyFieldDescriptor[];
+}
+
+// ============================================
+// BYOA Registration
+// ============================================
+
+export interface BYOARegistrationResult {
+  agentId: string;
+  controlToken: string;
+  walletId: string;
+  walletPublicKey: string;
+  supportedIntents: string[];
+  message: string;
 }

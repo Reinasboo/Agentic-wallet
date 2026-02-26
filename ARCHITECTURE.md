@@ -38,6 +38,18 @@ interface AgentDecision {
 - No direct network access
 - Cannot construct transactions
 - Receives sanitized, read-only context
+- Strategy parameters validated by the Strategy Registry (Zod schemas)
+
+**Built-in Strategy Implementations**:
+
+| Strategy | Class | Purpose |
+|----------|-------|---------|
+| `accumulator` | `AccumulatorAgent` | Maintain balance via airdrops |
+| `distributor` | `DistributorAgent` | Distribute SOL to recipients |
+| `balance_guard` | `BalanceGuardAgent` | Emergency-only airdrop when critically low |
+| `scheduled_payer` | `ScheduledPayerAgent` | Recurring single-recipient payments |
+
+Custom strategies can be registered at runtime via the Strategy Registry.
 
 **Agent Lifecycle**:
 ```
@@ -89,6 +101,8 @@ The RPC Layer handles all communication with Solana:
 - Transaction submission
 - Retry logic with exponential backoff
 - Confirmation tracking
+- **Memo Program integration**: All SOL and SPL token transfers include an on-chain memo via Solana's Memo Program v2 (`MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`). The `buildMemoInstruction()` and `buildMemoTransaction()` helpers in `transaction-builder.ts` attach human-readable memos to every transfer.
+- **SPL Token Program interaction**: Token transfers are built using `@solana/spl-token` and the Token Program via `buildTokenTransfer()` in `transaction-builder.ts`.
 
 ```typescript
 interface SolanaClient {
@@ -142,29 +156,51 @@ async function runAgentCycle(agentId: string) {
 **Multi-Agent Support**:
 ```
 Orchestrator
-    ├── Agent 1 (Accumulator) ──► Wallet 1
-    ├── Agent 2 (Distributor) ──► Wallet 2
-    └── Agent 3 (Custom)      ──► Wallet 3
+    ├── Agent 1 (Accumulator)      ──► Wallet 1  (cycle: 30s)
+    ├── Agent 2 (Distributor)      ──► Wallet 2  (cycle: 15s)
+    ├── Agent 3 (Balance Guard)    ──► Wallet 3  (cycle: 60s)
+    ├── Agent 4 (Scheduled Payer)  ──► Wallet 4  (cycle: 30s)
+    └── Agent N (Custom)           ──► Wallet N  (cycle: configurable)
 ```
+
+Each agent has independent **Execution Settings** (cycle interval, max actions
+per day, enabled/disabled) that can be updated at runtime via
+`PATCH /api/agents/:id/config`.
 
 ### 5. Frontend Layer (`/apps/frontend`)
 
 **Responsibility**: Observation and visualization only
 
-The Frontend is a **read-only observer** of system state:
+The Frontend is the operator's dashboard — primarily observational, with
+controlled management actions that never expose key material:
 
 ```
 Frontend Capabilities:
-✓ View agent status
-✓ View balances
-✓ View transactions
-✓ View activity feed
+✓ View agent status, balances, transactions, activity feed
+✓ Browse available strategies (Strategy Browser page)
+✓ Create agents via multi-step wizard (5 steps: name → strategy → params → execution → review)
+✓ Edit agent configuration (strategy params, execution settings, pause/resume)
 ✓ View connected external agents (BYOA)
-✓ View intent history
+✓ Register new external agents (BYOA Registration page)
+✓ View global intent history
 ✗ Access private keys
 ✗ Sign transactions
-✗ Modify agent logic
+✗ Override policy engine
 ```
+
+**Pages**:
+
+| Route | Purpose |
+|-------|---------|
+| `/` | Dashboard overview with stats |
+| `/agents` | Fleet list with create button |
+| `/agents/:id` | Agent detail + settings panel |
+| `/strategies` | Strategy browser (marketplace feel) |
+| `/connected-agents` | BYOA agent list |
+| `/connected-agents/:id` | BYOA agent detail + management |
+| `/byoa-register` | Register a new external agent |
+| `/intent-history` | Global intent history |
+| `/transactions` | Transaction list |
 
 **Data Flow**:
 ```
@@ -216,6 +252,60 @@ External Agent                              Platform
 - Rate limiting prevents abuse (30 intents/min per agent)
 - Control tokens are stored as SHA-256 hashes
 - 1 agent = 1 wallet (enforced at the binder level)
+
+## Strategy Registry (`/src/agent/strategy-registry.ts`)
+
+The Strategy Registry is the single source of truth for all agent strategies.
+It holds Zod-based parameter schemas, human-readable field descriptors, and
+metadata used by both backend validation and frontend UI rendering.
+
+```typescript
+interface StrategyDefinition {
+  name: string;                    // e.g. 'accumulator'
+  label: string;                   // e.g. 'Accumulator'
+  description: string;
+  supportedIntents: string[];      // e.g. ['airdrop', 'check_balance']
+  paramSchema: ZodObject<any>;     // Zod schema for validation
+  defaultParams: Record<string, unknown>;
+  fields: StrategyFieldDescriptor[];
+  builtIn: boolean;
+  icon: string;                    // Lucide icon name
+  category: 'income' | 'distribution' | 'trading' | 'utility' | 'custom';
+}
+```
+
+**Key Properties**:
+- Strategies self-register via `registry.register(definition)`
+- The `AgentFactory` validates params through the registry before creating agents
+- The orchestrator's `updateAgentConfig()` re-validates params through the registry
+- The `GET /api/strategies` endpoint serialises `StrategyDefinitionDTO[]` for the frontend
+- `AgentStrategy` is now a plain `string` (not a union), enabling runtime extensibility
+
+**Serialisation for the Frontend**:
+
+Zod schemas cannot be sent over the wire, so field descriptors are derived:
+
+```typescript
+interface StrategyFieldDescriptor {
+  key: string;
+  label: string;
+  type: 'number' | 'string' | 'boolean' | 'string[]';
+  default?: unknown;
+  description?: string;
+}
+```
+
+## dApp / Protocol Interactions
+
+The system interacts with three deployed Solana programs, demonstrating real dApp/protocol interaction beyond basic account operations:
+
+| Program | ID | Usage |
+|---------|----|-------|
+| **SystemProgram** | `11111111111111111111111111111111` | Native SOL transfers (`transfer_sol` intents) |
+| **Token Program (SPL)** | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | SPL token transfers (`transfer_token` intents) via `@solana/spl-token` |
+| **Memo Program v2** | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | On-chain memos attached to every SOL and SPL token transfer |
+
+All three programs are invoked through the RPC Layer's `transaction-builder.ts`, which constructs multi-instruction transactions (e.g., a token transfer + memo instruction in a single atomic transaction). The Wallet Layer signs the composed transaction, and the RPC Layer submits it.
 
 ## Intent System
 

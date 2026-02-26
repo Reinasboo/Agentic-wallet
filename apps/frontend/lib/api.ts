@@ -15,6 +15,8 @@ import type {
   ExternalAgent,
   ExternalAgentDetail,
   IntentHistoryRecord,
+  StrategyDefinition,
+  BYOARegistrationResult,
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
@@ -66,9 +68,31 @@ export async function createAgent(data: {
   name: string;
   strategy: string;
   strategyParams?: Record<string, unknown>;
+  executionSettings?: {
+    cycleIntervalMs?: number;
+    maxActionsPerDay?: number;
+    enabled?: boolean;
+  };
 }): Promise<ApiResponse<Agent>> {
   return fetchApi('/api/agents', {
     method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function updateAgentConfig(
+  id: string,
+  data: {
+    strategyParams?: Record<string, unknown>;
+    executionSettings?: {
+      cycleIntervalMs?: number;
+      maxActionsPerDay?: number;
+      enabled?: boolean;
+    };
+  },
+): Promise<ApiResponse<Agent>> {
+  return fetchApi(`/api/agents/${id}/config`, {
+    method: 'PATCH',
     body: JSON.stringify(data),
   });
 }
@@ -142,9 +166,32 @@ export function createWebSocket(
   return ws;
 }
 
+// ============================================\n// Strategy API\n// ============================================
+
+export async function getStrategies(): Promise<ApiResponse<StrategyDefinition[]>> {
+  return fetchApi('/api/strategies');
+}
+
+export async function getStrategy(name: string): Promise<ApiResponse<StrategyDefinition>> {
+  return fetchApi(`/api/strategies/${name}`);
+}
+
 // ============================================
 // BYOA (Bring Your Own Agent) API
 // ============================================
+
+export async function registerExternalAgent(data: {
+  agentName: string;
+  agentType: 'local' | 'remote';
+  agentEndpoint?: string;
+  supportedIntents: string[];
+  metadata?: Record<string, unknown>;
+}): Promise<ApiResponse<BYOARegistrationResult>> {
+  return fetchApi('/api/byoa/register', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+}
 
 export async function getExternalAgents(): Promise<ApiResponse<ExternalAgent[]>> {
   return fetchApi('/api/byoa/agents');
@@ -166,6 +213,16 @@ export async function getExternalIntents(
   }
   const params = limit ? `?limit=${limit}` : '';
   return fetchApi(`/api/byoa/intents${params}`);
+}
+
+/**
+ * Get ALL intent history (both built-in and BYOA agents).
+ */
+export async function getAllIntentHistory(
+  limit?: number
+): Promise<ApiResponse<IntentHistoryRecord[]>> {
+  const params = limit ? `?limit=${limit}` : '';
+  return fetchApi(`/api/intents${params}`);
 }
 
 export async function deactivateExternalAgent(

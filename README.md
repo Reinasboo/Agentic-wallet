@@ -7,12 +7,17 @@ A production-grade autonomous AI agent wallet system for Solana Devnet. This sys
 ## Features
 
 - **Autonomous Agents**: Self-operating agents with rule-based decision making
+- **Strategy Registry**: Extensible, Zod-validated strategy system with 4 built-in strategies
+- **Dynamic Configuration**: Update agent strategy params and execution settings at runtime
 - **Secure Wallet Management**: AES-256-GCM encrypted key storage
 - **Multi-Agent Support**: Run multiple independent agents simultaneously
 - **Policy Engine**: Configurable constraints on agent actions
 - **Bring Your Own Agent (BYOA)**: Register external AI agents and give them intent-based wallet access
-- **Real-time Dashboard**: Beautiful, Figma-quality frontend for monitoring
+- **Real-time Dashboard**: Beautiful, Figma-quality frontend for monitoring and management
+- **Strategy Browser**: Marketplace-style page for browsing available strategies
+- **Multi-step Agent Wizard**: 5-step creation flow with dynamic parameter forms
 - **WebSocket Events**: Live updates on agent activities
+- **dApp / Protocol Interaction**: Interacts with deployed Solana programs — Token Program (SPL) for token transfers, Memo Program v2 for on-chain memos — beyond basic SystemProgram usage
 - **Devnet Ready**: Safe testing on Solana Devnet
 
 ## Quick Start
@@ -58,11 +63,16 @@ This will start:
 
 1. Open the dashboard at http://localhost:3000
 2. Click "Create Agent"
-3. Name your agent and select a strategy:
+3. **Step 1** — Name your agent
+4. **Step 2** — Select a strategy:
    - **Accumulator**: Automatically requests airdrops to maintain balance
    - **Distributor**: Sends SOL to configured recipients
-4. Click "Create & Start"
-5. Watch your agent operate autonomously!
+   - **Balance Guard**: Emergency airdrop when balance is critically low
+   - **Scheduled Payer**: Recurring payments to a single recipient
+5. **Step 3** — Configure strategy parameters (dynamic form, pre-filled with defaults)
+6. **Step 4** — Set execution settings (cycle interval, max actions/day, auto-start)
+7. **Step 5** — Review and create
+8. Watch your agent operate autonomously!
 
 ## Architecture
 
@@ -103,13 +113,13 @@ This will start:
 ```
 /apps
   /frontend              # Next.js frontend application
-    /pages               # Page components
-    /components          # Reusable UI components
-    /lib                 # API client, hooks, utilities
+    /pages               # Page components (11 routes)
+    /components          # Reusable UI components (15+)
+    /lib                 # API client, hooks, utilities, types
     /styles              # Global styles and Tailwind config
 
 /src
-  /agent                 # Agent implementations
+  /agent                 # Agent implementations + Strategy Registry
   /wallet                # Secure wallet management
   /rpc                   # Solana RPC interactions
   /orchestrator          # Agent lifecycle management
@@ -138,6 +148,11 @@ DEEP_DIVE.md             # Design philosophy and rationale
 - `POST /api/agents` - Create new agent
 - `POST /api/agents/:id/start` - Start agent
 - `POST /api/agents/:id/stop` - Stop agent
+- `PATCH /api/agents/:id/config` - Update agent configuration (strategy params, execution settings)
+
+### Strategies
+- `GET /api/strategies` - List all registered strategies (with field descriptors)
+- `GET /api/strategies/:name` - Get a single strategy definition
 
 ### Transactions
 - `GET /api/transactions` - List all transactions
@@ -157,6 +172,12 @@ DEEP_DIVE.md             # Design philosophy and rationale
 - `GET /api/byoa/intents` - Get all BYOA intent history
 
 ## Agent Strategies
+
+Strategies are managed by the **Strategy Registry** — a central system that stores
+Zod-validated parameter schemas and human-readable field descriptors. The registry
+powers both backend validation and frontend UI rendering.
+
+Browse strategies visually at `/strategies` in the dashboard.
 
 ### Accumulator
 Maintains a target SOL balance by requesting airdrops when below threshold.
@@ -182,6 +203,34 @@ Distributes SOL to a list of configured recipients.
 }
 ```
 
+### Balance Guard
+Emergency-only airdrop agent — acts only when balance drops critically low.
+
+```typescript
+{
+  criticalBalance: 0.05,   // SOL — trigger threshold
+  airdropAmount: 1.0,      // SOL per airdrop
+  maxAirdropsPerDay: 3
+}
+```
+
+### Scheduled Payer
+Single-recipient recurring payment agent.
+
+```typescript
+{
+  recipient: 'addr...',       // Destination public key
+  amount: 0.01,               // SOL per payment
+  maxPaymentsPerDay: 5,
+  minBalanceToSend: 0.05      // SOL — minimum to keep
+}
+```
+
+### Custom Strategies
+
+Register your own strategy at runtime via the Strategy Registry.
+See [DEEP_DIVE.md](DEEP_DIVE.md#custom-strategies) for a complete example.
+
 ## Bring Your Own Agent (BYOA)
 
 The BYOA integration allows external developers to connect their own AI agents
@@ -205,7 +254,7 @@ curl -X POST http://localhost:3001/api/byoa/register \
     "agentName": "trading-bot-01",
     "agentType": "remote",
     "agentEndpoint": "http://localhost:8080/agent",
-    "supportedIntents": ["TRANSFER_SOL", "REQUEST_AIRDROP", "QUERY_BALANCE"]
+    "supportedIntents": ["TRANSFER_SOL", "TRANSFER_TOKEN", "REQUEST_AIRDROP", "QUERY_BALANCE"]
   }'
 
 # Response contains: agentId, controlToken, walletPublicKey
@@ -235,6 +284,7 @@ curl -X POST http://localhost:3001/api/byoa/intents \
 |--------|-------------|------------|
 | `REQUEST_AIRDROP` | Request devnet SOL | `amount` (0-2 SOL) |
 | `TRANSFER_SOL` | Transfer SOL | `recipient`, `amount` |
+| `TRANSFER_TOKEN` | Transfer SPL tokens | `mint`, `recipient`, `amount` |
 | `QUERY_BALANCE` | Check wallet balance | (none) |
 
 ### Security Guarantees

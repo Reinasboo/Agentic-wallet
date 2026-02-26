@@ -101,24 +101,32 @@ export interface AgentInfo {
   readonly walletId: string;
   readonly walletPublicKey: string;
   readonly strategy: AgentStrategy;
+  readonly strategyParams?: Record<string, unknown>;
+  readonly executionSettings?: ExecutionSettings;
   readonly createdAt: Date;
   readonly lastActionAt?: Date;
   readonly errorMessage?: string;
 }
 
-export type AgentStrategy = 
-  | 'accumulator'
-  | 'distributor'
-  | 'trader'
-  | 'custom';
+export type AgentStrategy = string;
 
 /**
- * Agent configuration for creation
+ * Execution settings governing agent cycle behavior.
+ */
+export interface ExecutionSettings {
+  readonly cycleIntervalMs: number;
+  readonly maxActionsPerDay: number;
+  readonly enabled: boolean;
+}
+
+/**
+ * Agent configuration for creation and updates.
  */
 export interface AgentConfig {
   readonly name: string;
   readonly strategy: AgentStrategy;
   readonly strategyParams?: Record<string, unknown>;
+  readonly executionSettings?: Partial<ExecutionSettings>;
 }
 
 // ============================================
@@ -133,7 +141,8 @@ export type Intent =
   | AirdropIntent
   | TransferSolIntent
   | TransferTokenIntent
-  | CheckBalanceIntent;
+  | CheckBalanceIntent
+  | AutonomousIntent;
 
 export interface BaseIntent {
   readonly id: string;
@@ -161,6 +170,18 @@ export interface TransferTokenIntent extends BaseIntent {
 
 export interface CheckBalanceIntent extends BaseIntent {
   readonly type: 'check_balance';
+}
+
+/**
+ * Autonomous intent — the agent decides what action to take.
+ * No policy restrictions are enforced; all actions are logged.
+ * The `action` field describes what the agent chose to do,
+ * and `params` carries the action-specific data.
+ */
+export interface AutonomousIntent extends BaseIntent {
+  readonly type: 'autonomous';
+  readonly action: 'airdrop' | 'transfer_sol' | 'transfer_token' | 'query_balance';
+  readonly params: Record<string, unknown>;
 }
 
 // ============================================

@@ -13,9 +13,11 @@ import {
   AgentInfo,
   AgentStatus,
   AgentStrategy,
+  ExecutionSettings,
   Intent,
   AirdropIntent,
   TransferSolIntent,
+  TransferTokenIntent,
   CheckBalanceIntent,
   BalanceInfo,
   TokenBalance,
@@ -58,12 +60,16 @@ export abstract class BaseAgent {
   protected lastActionAt?: Date;
   protected errorMessage?: string;
   protected loopCount: number = 0;
+  protected strategyParams: Record<string, unknown>;
+  protected executionSettings: ExecutionSettings;
 
   constructor(
     name: string,
     strategy: AgentStrategy,
     walletId: string,
-    walletPublicKey: string
+    walletPublicKey: string,
+    strategyParams?: Record<string, unknown>,
+    executionSettings?: Partial<ExecutionSettings>,
   ) {
     this.id = uuidv4();
     this.name = name;
@@ -71,6 +77,12 @@ export abstract class BaseAgent {
     this.walletId = walletId;
     this.walletPublicKey = walletPublicKey;
     this.createdAt = new Date();
+    this.strategyParams = strategyParams ?? {};
+    this.executionSettings = {
+      cycleIntervalMs: executionSettings?.cycleIntervalMs ?? 30_000,
+      maxActionsPerDay: executionSettings?.maxActionsPerDay ?? 100,
+      enabled: executionSettings?.enabled ?? true,
+    };
   }
 
   /**
@@ -84,6 +96,8 @@ export abstract class BaseAgent {
       walletId: this.walletId,
       walletPublicKey: this.walletPublicKey,
       strategy: this.strategy,
+      strategyParams: { ...this.strategyParams },
+      executionSettings: { ...this.executionSettings },
       createdAt: this.createdAt,
       lastActionAt: this.lastActionAt,
       errorMessage: this.errorMessage,
@@ -121,6 +135,28 @@ export abstract class BaseAgent {
   }
 
   /**
+   * Get execution settings
+   */
+  getExecutionSettings(): ExecutionSettings {
+    return { ...this.executionSettings };
+  }
+
+  /**
+   * Update execution settings at runtime (takes effect next cycle).
+   */
+  updateExecutionSettings(patch: Partial<ExecutionSettings>): void {
+    this.executionSettings = { ...this.executionSettings, ...patch };
+  }
+
+  /**
+   * Update strategy params at runtime (takes effect next cycle).
+   * Subclasses should override to re-apply internal state.
+   */
+  updateStrategyParams(params: Record<string, unknown>): void {
+    this.strategyParams = { ...this.strategyParams, ...params };
+  }
+
+  /**
    * Think about what to do next
    * This is the core decision-making method that subclasses implement
    */
@@ -148,6 +184,21 @@ export abstract class BaseAgent {
       agentId: this.id,
       timestamp: new Date(),
       type: 'transfer_sol',
+      recipient,
+      amount,
+    };
+  }
+
+  /**
+   * Create an SPL token transfer intent (targets the Token Program)
+   */
+  protected createTransferTokenIntent(mint: string, recipient: string, amount: number): TransferTokenIntent {
+    return {
+      id: uuidv4(),
+      agentId: this.id,
+      timestamp: new Date(),
+      type: 'transfer_token',
+      mint,
       recipient,
       amount,
     };

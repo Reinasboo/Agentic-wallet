@@ -19,11 +19,10 @@ import {
   getAgentRegistry,
   getWalletBinder,
   getIntentRouter,
-  getAgentAdapter,
-  ExternalAgentRegistration,
   ExternalIntent,
   SupportedIntentType,
 } from './integration/index.js';
+import { getStrategyRegistry } from './agent/strategy-registry.js';
 
 const logger = createLogger('API');
 
@@ -37,7 +36,7 @@ app.use(cors({
     `http://localhost:3000`,         // Next.js dev
     'http://127.0.0.1:3000',
   ],
-  methods: ['GET', 'POST'],
+  methods: ['GET', 'POST', 'PATCH'],
 }));
 
 // Limit request body size to prevent DoS
@@ -53,11 +52,45 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
+// Root route — API index
+app.get('/', (_req: Request, res: Response) => {
+  res.json({
+    name: 'Agentic Wallet System',
+    version: '1.0.0',
+    network: config.SOLANA_NETWORK,
+    endpoints: {
+      health: '/api/health',
+      stats: '/api/stats',
+      agents: '/api/agents',
+      transactions: '/api/transactions',
+      strategies: '/api/strategies',
+      byoa: '/api/byoa/register',
+      docs: 'https://github.com/Reinasboo/Agentic-wallet',
+    },
+    dashboard: 'http://localhost:3000',
+    timestamp: new Date(),
+  });
+});
+
 // Validation schemas
 const CreateAgentSchema = z.object({
   name: z.string().min(1).max(50),
-  strategy: z.enum(['accumulator', 'distributor']),
+  strategy: z.string().min(1).max(50),
   strategyParams: z.record(z.unknown()).optional(),
+  executionSettings: z.object({
+    cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
+    maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
+    enabled: z.boolean().optional(),
+  }).optional(),
+});
+
+const UpdateAgentConfigSchema = z.object({
+  strategyParams: z.record(z.unknown()).optional(),
+  executionSettings: z.object({
+    cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
+    maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
+    enabled: z.boolean().optional(),
+  }).optional(),
 });
 
 /**
@@ -351,6 +384,98 @@ app.post('/api/agents/:id/stop', async (req: Request, res: Response) => {
   }
 });
 
+app.patch('/api/agents/:id/config', async (req: Request, res: Response) => {
+  try {
+    const validation = UpdateAgentConfigSchema.safeParse(req.body);
+    if (!validation.success) {
+      res.status(400).json({
+        success: false,
+        error: validation.error.message,
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    const orchestrator = getOrchestrator();
+    const result = orchestrator.updateAgentConfig(
+      req.params['id'] ?? '',
+      validation.data,
+    );
+
+    if (!result.ok) {
+      res.status(400).json({
+        success: false,
+        error: result.error.message,
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: result.value,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: String(error),
+      timestamp: new Date(),
+    });
+  }
+});
+
+// ============================================
+// STRATEGY ENDPOINTS
+// ============================================
+
+app.get('/api/strategies', (_req: Request, res: Response) => {
+  try {
+    const registry = getStrategyRegistry();
+    const strategies = registry.getAllDTOs();
+
+    res.json({
+      success: true,
+      data: strategies,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: String(error),
+      timestamp: new Date(),
+    });
+  }
+});
+
+app.get('/api/strategies/:name', (req: Request, res: Response) => {
+  try {
+    const registry = getStrategyRegistry();
+    const strategy = registry.getDTO(req.params['name'] ?? '');
+
+    if (!strategy) {
+      res.status(404).json({
+        success: false,
+        error: 'Strategy not found',
+        timestamp: new Date(),
+      });
+      return;
+    }
+
+    res.json({
+      success: true,
+      data: strategy,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: String(error),
+      timestamp: new Date(),
+    });
+  }
+});
+
 // ============================================
 // TRANSACTION ENDPOINTS
 // ============================================
@@ -424,13 +549,13 @@ const RegisterAgentSchema = z.object({
   agentType: z.enum(['local', 'remote']),
   agentEndpoint: z.string().url().optional(),
   supportedIntents: z.array(
-    z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'QUERY_BALANCE'])
+    z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS'])
   ).min(1),
   metadata: z.record(z.unknown()).optional(),
 });
 
 const SubmitIntentSchema = z.object({
-  type: z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'QUERY_BALANCE']),
+  type: z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS']),
   params: z.record(z.unknown()).default({}),
 });
 
@@ -705,12 +830,10 @@ app.get('/api/byoa/agents/:id/intents', (req: Request, res: Response) => {
 
 /**
  * Deactivate an external agent.
+ * Admin action — no bearer token required (dashboard use).
  */
 app.post('/api/byoa/agents/:id/deactivate', (req: Request, res: Response) => {
   try {
-    const auth = authenticateBYOAAgent(req, res);
-    if (!auth) return;
-
     const registry = getAgentRegistry();
     const result = registry.deactivateAgent(req.params['id'] ?? '');
 
@@ -735,12 +858,10 @@ app.post('/api/byoa/agents/:id/deactivate', (req: Request, res: Response) => {
 
 /**
  * Activate an external agent.
+ * Admin action — no bearer token required (dashboard use).
  */
 app.post('/api/byoa/agents/:id/activate', (req: Request, res: Response) => {
   try {
-    const auth = authenticateBYOAAgent(req, res);
-    if (!auth) return;
-
     const registry = getAgentRegistry();
     const result = registry.activateAgent(req.params['id'] ?? '');
 
@@ -765,12 +886,10 @@ app.post('/api/byoa/agents/:id/activate', (req: Request, res: Response) => {
 
 /**
  * Revoke an external agent (permanent).
+ * Admin action — no bearer token required (dashboard use).
  */
 app.post('/api/byoa/agents/:id/revoke', (req: Request, res: Response) => {
   try {
-    const auth = authenticateBYOAAgent(req, res);
-    if (!auth) return;
-
     const registry = getAgentRegistry();
     const result = registry.revokeAgent(req.params['id'] ?? '');
 
@@ -795,11 +914,36 @@ app.post('/api/byoa/agents/:id/revoke', (req: Request, res: Response) => {
 
 /**
  * Get all intent history (for dashboard).
+ * Includes intents from both BYOA external agents and built-in orchestrated agents.
  */
 app.get('/api/byoa/intents', (req: Request, res: Response) => {
   try {
     const router = getIntentRouter();
     const limit = Math.min(parseInt(req.query['limit'] as string) || 100, 500);
+    const intents = router.getIntentHistory(undefined, limit);
+
+    res.json({
+      success: true,
+      data: intents,
+      timestamp: new Date(),
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      error: String(error),
+      timestamp: new Date(),
+    });
+  }
+});
+
+/**
+ * Global intent history endpoint — returns ALL intents (built-in + BYOA).
+ * The frontend intent-history page uses this.
+ */
+app.get('/api/intents', (req: Request, res: Response) => {
+  try {
+    const router = getIntentRouter();
+    const limit = Math.min(parseInt(req.query['limit'] as string) || 200, 1000);
     const intents = router.getIntentHistory(undefined, limit);
 
     res.json({

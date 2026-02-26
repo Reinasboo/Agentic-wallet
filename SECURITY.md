@@ -65,17 +65,20 @@ signTransaction() // ❌ Not available
 
 // Agent CAN only do this:
 return { type: 'transfer_sol', amount: 0.1, recipient: '...' }
-// Which is then validated by policy engine
+return { type: 'transfer_token', mint: '...', amount: 10, recipient: '...' }
+// Both intent types are validated by the same policy engine
 ```
 
 #### 3. Frontend Attack
 **Threat**: XSS or compromised frontend attempts key theft
 
 **Mitigations**:
-- Frontend is completely read-only
-- No key material ever sent to frontend
+- Frontend never receives key material
 - API only exposes public information
-- CORS configured for specific origins
+- CORS configured for specific origins (GET, POST, PATCH)
+- Agent creation and configuration go through server-side validation
+- Strategy parameters validated by Zod schemas in the Strategy Registry
+- `executionSettings` bounds enforced server-side (min cycle 5 s, max 1 h)
 
 ```typescript
 // API Response - Safe
@@ -154,7 +157,7 @@ observe private key material. This is enforced at multiple levels:
 1. **Control Tokens ≠ Keys**: The control token authenticates intents but cannot
    sign transactions. It is a bearer token only.
 2. **Intent Boundary**: External agents submit high-level intents
-   (`REQUEST_AIRDROP`, `TRANSFER_SOL`, `QUERY_BALANCE`), not raw transactions.
+   (`REQUEST_AIRDROP`, `TRANSFER_SOL`, `TRANSFER_TOKEN`, `QUERY_BALANCE`), not raw transactions.
    The platform converts intents to transactions internally.
 3. **Wallet Isolation**: Each external agent is bound to exactly one wallet.
    An agent's token cannot access any other agent's wallet.
@@ -293,16 +296,24 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [x] Encrypted key storage
 - [x] Agent isolation from keys
 - [x] Policy-based validation
-- [x] Read-only frontend
-- [x] Input validation (Zod)
-- [x] Secure logging (redaction)
+- [x] Read-only frontend (no key exposure)
+- [x] Input validation (Zod) for all API endpoints
+- [x] Secure logging (exact-match redaction of sensitive fields)
 - [x] Rate limiting (daily transfers)
 - [x] Balance minimums
 - [x] BYOA control token hashing (SHA-256)
+- [x] BYOA timing-safe token comparison (`crypto.timingSafeEqual`)
 - [x] BYOA per-agent rate limiting (30/min)
 - [x] BYOA intent validation against supported set
 - [x] BYOA 1-wallet-per-agent isolation
 - [x] BYOA agent revocation
+- [x] Strategy Registry param validation (Zod schemas per strategy)
+- [x] Execution settings bounds (cycle 5 s–1 h, actions 1–10 000)
+- [x] SPL token transfer (`transfer_token`) validated by the same policy engine as `transfer_sol`
+- [x] SPL token transfers require wallet-layer signing (agents never access keys)
+- [x] Unhandled rejection / uncaught exception handlers
+- [x] Production-mode encryption secret validation
+- [x] Request body size limit (100 KB)
 
 ### Recommended for Production
 - [ ] HSM integration

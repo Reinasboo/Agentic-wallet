@@ -18,7 +18,7 @@ import {
   Sparkles,
   Circle,
 } from 'lucide-react';
-import { useWebSocket } from '@/lib/hooks';
+import { useWebSocket, useEvents } from '@/lib/hooks';
 import type { SystemEvent } from '@/lib/types';
 import {
   cn,
@@ -102,8 +102,10 @@ function getEventStatusIcon(event: SystemEvent) {
 
 export function ActivityFeed({ events: propEvents, maxItems = 15, title = 'Recent Activity' }: ActivityFeedProps) {
   const { events: wsEvents, connected } = useWebSocket();
+  const { events: restEvents } = useEvents(50, 10000);
 
-  const events = propEvents ?? wsEvents;
+  // Use prop events first, then WebSocket events, fall back to REST polling
+  const events = propEvents ?? (wsEvents.length > 0 ? wsEvents : restEvents);
   const displayEvents = events.slice(0, maxItems);
 
   return (

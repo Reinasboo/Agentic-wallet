@@ -28,7 +28,9 @@ export type ExternalAgentStatus = 'registered' | 'active' | 'inactive' | 'revoke
 export type SupportedIntentType =
   | 'REQUEST_AIRDROP'
   | 'TRANSFER_SOL'
-  | 'QUERY_BALANCE';
+  | 'TRANSFER_TOKEN'
+  | 'QUERY_BALANCE'
+  | 'AUTONOMOUS';
 
 export interface ExternalAgentRegistration {
   readonly agentName: string;

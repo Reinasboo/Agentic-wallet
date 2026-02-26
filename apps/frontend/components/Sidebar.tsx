@@ -15,6 +15,9 @@ import {
   Bot,
   ArrowRightLeft,
   Plug,
+  ScrollText,
+  Layers,
+  UserPlus,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
@@ -33,6 +36,21 @@ const navItems = [
     name: 'Connected Agents',
     href: '/connected-agents',
     icon: Plug,
+  },
+  {
+    name: 'Register BYOA',
+    href: '/byoa-register',
+    icon: UserPlus,
+  },
+  {
+    name: 'Strategies',
+    href: '/strategies',
+    icon: Layers,
+  },
+  {
+    name: 'Intent History',
+    href: '/intent-history',
+    icon: ScrollText,
   },
   {
     name: 'Transactions',

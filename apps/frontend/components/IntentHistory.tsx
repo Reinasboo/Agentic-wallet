@@ -14,6 +14,7 @@ import {
   ArrowUpRight,
   Cloud,
   Wallet,
+  Zap,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IntentHistoryRecord, SupportedIntentType } from '@/lib/types';
@@ -32,10 +33,20 @@ const intentTypeConfig: Record<
     icon: ArrowUpRight,
     color: 'text-amber-500',
   },
+  TRANSFER_TOKEN: {
+    label: 'Token Transfer',
+    icon: ArrowUpRight,
+    color: 'text-purple-500',
+  },
   QUERY_BALANCE: {
     label: 'Balance',
     icon: Wallet,
     color: 'text-emerald-500',
+  },
+  AUTONOMOUS: {
+    label: 'Autonomous',
+    icon: Zap,
+    color: 'text-rose-500',
   },
 };
 

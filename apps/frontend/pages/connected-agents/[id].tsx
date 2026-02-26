@@ -4,7 +4,7 @@
  * Connected Agent Detail Page
  *
  * Shows detail for a single BYOA agent: wallet, balance, intent history.
- * Purely observational — no mutation from the frontend.
+ * Includes management actions: activate, deactivate, revoke.
  */
 
 import { useRouter } from 'next/router';
@@ -21,6 +21,9 @@ import {
   ShieldAlert,
   Copy,
   CheckCircle2,
+  Power,
+  PowerOff,
+  Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
 import {
@@ -29,6 +32,7 @@ import {
   IntentHistory,
 } from '@/components';
 import { useExternalAgent } from '@/lib/hooks';
+import * as api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { ExternalAgentStatus } from '@/lib/types';
 
@@ -65,7 +69,34 @@ function CopyButton({ text }: { text: string }) {
 export default function ConnectedAgentDetailPage() {
   const router = useRouter();
   const agentId = typeof router.query.id === 'string' ? router.query.id : null;
-  const { data, loading, error } = useExternalAgent(agentId);
+  const { data, loading, error, refetch } = useExternalAgent(agentId);
+  const [actionLoading, setActionLoading] = useState(false);
+  const [confirmRevoke, setConfirmRevoke] = useState(false);
+
+  const handleActivate = async () => {
+    if (!agentId) return;
+    setActionLoading(true);
+    await api.activateExternalAgent(agentId);
+    await refetch();
+    setActionLoading(false);
+  };
+
+  const handleDeactivate = async () => {
+    if (!agentId) return;
+    setActionLoading(true);
+    await api.deactivateExternalAgent(agentId);
+    await refetch();
+    setActionLoading(false);
+  };
+
+  const handleRevoke = async () => {
+    if (!agentId) return;
+    setActionLoading(true);
+    await api.revokeExternalAgent(agentId);
+    await refetch();
+    setActionLoading(false);
+    setConfirmRevoke(false);
+  };
 
   const agent = data?.agent;
   const statusCfg = agent ? statusConfig[agent.status] ?? statusConfig.inactive : null;
@@ -193,6 +224,68 @@ export default function ConnectedAgentDetailPage() {
                       </span>
                     </div>
                   </div>
+
+                  {/* Management Actions */}
+                  {agent.status !== 'revoked' && (
+                    <div className="flex items-center gap-3 pt-2 border-t border-border-light">
+                      {agent.status === 'active' || agent.status === 'registered' ? (
+                        <button
+                          onClick={handleDeactivate}
+                          disabled={actionLoading}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-caption font-medium text-status-warning bg-status-warning/10 hover:bg-status-warning/20 transition-colors disabled:opacity-50"
+                        >
+                          <PowerOff className="w-3.5 h-3.5" />
+                          Deactivate
+                        </button>
+                      ) : (
+                        <button
+                          onClick={handleActivate}
+                          disabled={actionLoading}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-caption font-medium text-status-success bg-status-success/10 hover:bg-status-success/20 transition-colors disabled:opacity-50"
+                        >
+                          <Power className="w-3.5 h-3.5" />
+                          Activate
+                        </button>
+                      )}
+
+                      {!confirmRevoke ? (
+                        <button
+                          onClick={() => setConfirmRevoke(true)}
+                          disabled={actionLoading}
+                          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl text-caption font-medium text-status-error bg-status-error/10 hover:bg-status-error/20 transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                          Revoke
+                        </button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <span className="text-caption text-status-error">Permanently revoke this agent?</span>
+                          <button
+                            onClick={handleRevoke}
+                            disabled={actionLoading}
+                            className="px-3 py-1.5 rounded-lg text-caption font-medium text-white bg-status-error hover:bg-status-error/90 transition-colors disabled:opacity-50"
+                          >
+                            Yes, revoke
+                          </button>
+                          <button
+                            onClick={() => setConfirmRevoke(false)}
+                            className="px-3 py-1.5 rounded-lg text-caption font-medium text-text-muted hover:text-text-primary transition-colors"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  {agent.status === 'revoked' && (
+                    <div className="pt-2 border-t border-border-light">
+                      <span className="inline-flex items-center gap-2 text-caption text-status-error">
+                        <ShieldAlert className="w-3.5 h-3.5" />
+                        This agent has been permanently revoked and cannot be reactivated.
+                      </span>
+                    </div>
+                  )}
                 </motion.div>
 
                 {/* Intent history */}

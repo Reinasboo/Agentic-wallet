@@ -26,10 +26,15 @@ import {
 import { getConfig } from '../utils/config.js';
 import { createLogger } from '../utils/logger.js';
 import { getWalletManager, WalletManager } from '../wallet/index.js';
-import { getSolanaClient, buildSolTransfer, SolanaClient } from '../rpc/index.js';
+import { getSolanaClient, buildSolTransfer, buildTokenTransfer, SolanaClient } from '../rpc/index.js';
 import { BaseAgent, AgentContext, createAgent } from '../agent/index.js';
 import { AccumulatorAgent } from '../agent/accumulator-agent.js';
 import { DistributorAgent } from '../agent/distributor-agent.js';
+import { BalanceGuardAgent } from '../agent/balance-guard-agent.js';
+import { ScheduledPayerAgent } from '../agent/scheduled-payer-agent.js';
+import { getStrategyRegistry } from '../agent/strategy-registry.js';
+import { getIntentRouter } from '../integration/intentRouter.js';
+import type { SupportedIntentType } from '../integration/agentRegistry.js';
 import { eventBus } from './event-emitter.js';
 
 const logger = createLogger('ORCHESTRATOR');
@@ -78,10 +83,8 @@ export class Orchestrator {
     setTimeout(() => {
       for (const managed of this.agents.values()) {
         const agent = managed.agent;
-        if (agent instanceof AccumulatorAgent) {
-          agent.resetDailyCounters();
-        } else if (agent instanceof DistributorAgent) {
-          agent.resetDailyCounters();
+        if (typeof (agent as any).resetDailyCounters === 'function') {
+          (agent as any).resetDailyCounters();
         }
       }
       logger.info('Agent daily counters reset');
@@ -154,17 +157,24 @@ export class Orchestrator {
       return failure(new Error('Agent is already running'));
     }
 
+    const execSettings = managed.agent.getExecutionSettings();
+    if (!execSettings.enabled) {
+      return failure(new Error('Agent is disabled via execution settings'));
+    }
+
     managed.agent.setStatus('idle');
+
+    const interval = execSettings.cycleIntervalMs || this.loopInterval;
 
     // Start the agent loop
     managed.intervalId = setInterval(async () => {
       await this.runAgentCycle(agentId);
-    }, this.loopInterval);
+    }, interval);
 
     // Run first cycle immediately
     this.runAgentCycle(agentId);
 
-    logger.info('Agent started', { agentId });
+    logger.info('Agent started', { agentId, cycleIntervalMs: interval });
 
     return success(true);
   }
@@ -292,12 +302,26 @@ export class Orchestrator {
   /**
    * Execute an agent's intent
    */
+  /**
+   * Map internal intent type names to the SupportedIntentType enum used by
+   * the integration layer / intent history.
+   */
+  private static readonly INTENT_TYPE_MAP: Record<string, SupportedIntentType> = {
+    airdrop: 'REQUEST_AIRDROP',
+    transfer_sol: 'TRANSFER_SOL',
+    transfer_token: 'TRANSFER_TOKEN',
+    check_balance: 'QUERY_BALANCE',
+    autonomous: 'AUTONOMOUS',
+  };
+
   private async executeIntent(
     agent: BaseAgent,
     intent: Intent,
     currentBalance: number
   ): Promise<void> {
     const walletId = agent.getWalletId();
+    const intentId = uuidv4();
+    const createdAt = new Date();
 
     logger.info('Executing intent', {
       agentId: agent.id,
@@ -316,8 +340,12 @@ export class Orchestrator {
         agentId: agent.id,
         reason: validationResult.error.message,
       });
+      this.recordIntentHistory(intentId, agent.id, intent, 'rejected', undefined, validationResult.error.message, createdAt);
       return;
     }
+
+    // Snapshot transaction count so we can find the resulting tx after execution
+    const txCountBefore = this.transactions.length;
 
     // Execute based on intent type
     switch (intent.type) {
@@ -329,13 +357,69 @@ export class Orchestrator {
         await this.executeTransfer(agent, intent.recipient, intent.amount);
         break;
 
+      case 'transfer_token':
+        await this.executeTokenTransfer(
+          agent,
+          intent.mint,
+          intent.recipient,
+          intent.amount,
+        );
+        break;
+
       case 'check_balance':
-        // Balance is already in context, nothing to do
+        // Balance is already in context — record as executed
+        this.recordIntentHistory(intentId, agent.id, intent, 'executed', { balance: currentBalance }, undefined, createdAt);
+        return; // early return; no tx to inspect
+
+      case 'autonomous':
+        // Autonomous intent — delegate to the sub-action with NO policy gate.
+        // The wallet-manager already skips policy for type === 'autonomous'.
+        await this.executeAutonomousIntent(agent, intent, currentBalance);
         break;
 
       default:
         logger.warn('Unknown intent type', { intent });
+        return;
     }
+
+    // Inspect the transaction that was created during execution
+    const newTxs = this.transactions.slice(txCountBefore);
+    const lastTx = newTxs.length > 0 ? newTxs[newTxs.length - 1] : undefined;
+
+    if (lastTx) {
+      const status = lastTx.status === 'confirmed' ? 'executed' as const : 'rejected' as const;
+      const result = lastTx.status === 'confirmed'
+        ? { signature: lastTx.signature, amount: lastTx.amount, recipient: lastTx.recipient }
+        : undefined;
+      const error = lastTx.status === 'failed' ? lastTx.error : undefined;
+      this.recordIntentHistory(intentId, agent.id, intent, status, result, error, createdAt);
+    }
+  }
+
+  /**
+   * Push an intent history record into the shared IntentRouter store
+   * so it appears alongside BYOA intents on the dashboard.
+   */
+  private recordIntentHistory(
+    intentId: string,
+    agentId: string,
+    intent: Intent,
+    status: 'executed' | 'rejected',
+    result?: Record<string, unknown>,
+    error?: string,
+    createdAt?: Date,
+  ): void {
+    const mappedType = Orchestrator.INTENT_TYPE_MAP[intent.type] ?? 'QUERY_BALANCE';
+    getIntentRouter().recordIntent({
+      intentId,
+      agentId,
+      type: mappedType as SupportedIntentType,
+      params: { ...intent } as unknown as Record<string, unknown>,
+      status,
+      result,
+      error,
+      createdAt: createdAt ?? new Date(),
+    });
   }
 
   /**
@@ -445,11 +529,12 @@ export class Orchestrator {
     this.transactions.push(txRecord);
     this.trimTransactions();
 
-    // Build transaction
+    // Build transaction (includes Memo Program interaction)
     const txResult = await buildSolTransfer(
       publicKeyResult.value,
       recipientPubkey,
-      amount
+      amount,
+      `AgenticWallet:transfer_sol:${agent.id}`,
     );
 
     if (!txResult.ok) {
@@ -499,6 +584,172 @@ export class Orchestrator {
   }
 
   /**
+   * Execute an SPL token transfer (interacts with the Token Program)
+   */
+  private async executeTokenTransfer(
+    agent: BaseAgent,
+    mint: string,
+    recipient: string,
+    amount: number,
+  ): Promise<void> {
+    const walletId = agent.getWalletId();
+
+    const publicKeyResult = this.walletManager.getPublicKey(walletId);
+    if (!publicKeyResult.ok) {
+      logger.error('Failed to get public key for token transfer', { walletId });
+      return;
+    }
+
+    let recipientPubkey: PublicKey;
+    let mintPubkey: PublicKey;
+    try {
+      recipientPubkey = new PublicKey(recipient);
+      mintPubkey = new PublicKey(mint);
+    } catch {
+      logger.error('Invalid address for token transfer', { recipient, mint });
+      return;
+    }
+
+    const txRecord: TransactionRecord = {
+      id: uuidv4(),
+      walletId,
+      type: 'transfer_spl',
+      status: 'pending',
+      amount,
+      recipient,
+      mint,
+      createdAt: new Date(),
+    };
+
+    this.transactions.push(txRecord);
+    this.trimTransactions();
+
+    // Build token transfer via SPL Token Program
+    // Use amount as raw integer units (caller decides decimals); default 9 decimals for most SPL tokens
+    const rawAmount = BigInt(Math.round(amount * 1e9));
+    const txResult = await buildTokenTransfer(
+      publicKeyResult.value,
+      mintPubkey,
+      recipientPubkey,
+      rawAmount,
+      9,
+      `AgenticWallet:token_transfer:${agent.id}`,
+    );
+
+    if (!txResult.ok) {
+      this.updateTransactionFailed(txRecord.id, txResult.error.message);
+      return;
+    }
+
+    // Sign
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) {
+      this.updateTransactionFailed(txRecord.id, signResult.error.message);
+      return;
+    }
+
+    // Send
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+
+    if (sendResult.ok) {
+      this.walletManager.recordTransfer(walletId);
+
+      const idx = this.transactions.findIndex((t) => t.id === txRecord.id);
+      if (idx >= 0) {
+        this.transactions[idx] = {
+          ...txRecord,
+          signature: sendResult.value.signature,
+          status: 'confirmed',
+          confirmedAt: new Date(),
+        };
+
+        eventBus.emit({
+          id: uuidv4(),
+          type: 'transaction',
+          timestamp: new Date(),
+          transaction: this.transactions[idx]!,
+        });
+      }
+
+      logger.info('Token transfer successful', {
+        agentId: agent.id,
+        mint,
+        recipient,
+        amount,
+        signature: sendResult.value.signature,
+      });
+    } else {
+      this.updateTransactionFailed(txRecord.id, sendResult.error.message);
+    }
+  }
+
+  /**
+   * Execute an autonomous intent for a built-in agent.
+   *
+   * Reads `intent.action` and delegates to the appropriate sub-method.
+   * No policy validation is applied — the agent has unrestricted control.
+   * Everything is still fully logged in transactions + intent history.
+   */
+  private async executeAutonomousIntent(
+    agent: BaseAgent,
+    intent: import('../utils/types.js').AutonomousIntent,
+    currentBalance: number,
+  ): Promise<void> {
+    const { action, params } = intent;
+
+    logger.info('Autonomous intent executing', {
+      agentId: agent.id,
+      action,
+      params,
+    });
+
+    // Emit event for real-time observability
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'agent_action',
+      timestamp: new Date(),
+      agentId: agent.id,
+      action: `autonomous:${action}`,
+      details: { params },
+    });
+
+    switch (action) {
+      case 'airdrop': {
+        const amount = typeof params['amount'] === 'number' ? params['amount'] : 1;
+        await this.executeAirdrop(agent, amount);
+        break;
+      }
+      case 'transfer_sol': {
+        const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
+        const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
+        if (!recipient || amount <= 0) {
+          logger.error('Autonomous transfer_sol: missing recipient or amount', { params });
+          return;
+        }
+        await this.executeTransfer(agent, recipient, amount);
+        break;
+      }
+      case 'transfer_token': {
+        const mint = typeof params['mint'] === 'string' ? params['mint'] : '';
+        const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
+        const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
+        if (!mint || !recipient || amount <= 0) {
+          logger.error('Autonomous transfer_token: missing params', { params });
+          return;
+        }
+        await this.executeTokenTransfer(agent, mint, recipient, amount);
+        break;
+      }
+      case 'query_balance': {
+        // Balance is already in agent context — nothing to execute on-chain
+        break;
+      }
+      default:
+        logger.warn('Autonomous intent: unknown action', { action, params });
+    }
+  }
+
+  /**
    * Update a transaction as failed
    */
   private updateTransactionFailed(txId: string, error: string): void {
@@ -522,6 +773,54 @@ export class Orchestrator {
     if (this.transactions.length > this.maxTransactions) {
       this.transactions = this.transactions.slice(-this.maxTransactions);
     }
+  }
+
+  /**
+   * Update an agent's configuration at runtime.
+   * Changes take effect at the next cycle. Does not interrupt in-flight execution.
+   */
+  updateAgentConfig(
+    agentId: string,
+    patch: { strategyParams?: Record<string, unknown>; executionSettings?: Partial<import('../utils/types.js').ExecutionSettings> },
+  ): Result<AgentInfo, Error> {
+    const managed = this.agents.get(agentId);
+    if (!managed) {
+      return failure(new Error(`Agent not found: ${agentId}`));
+    }
+
+    const { agent } = managed;
+
+    // Validate strategy params if provided
+    if (patch.strategyParams) {
+      const registry = getStrategyRegistry();
+      const validation = registry.validateParams(agent.strategy, {
+        ...agent.getInfo().strategyParams,
+        ...patch.strategyParams,
+      });
+      if (!validation.ok) {
+        return failure(new Error(`Invalid strategy params: ${validation.error}`));
+      }
+      agent.updateStrategyParams(validation.value);
+    }
+
+    // Apply execution settings
+    if (patch.executionSettings) {
+      const prev = agent.getExecutionSettings();
+      agent.updateExecutionSettings(patch.executionSettings);
+
+      // If cycle interval changed while running, restart the interval
+      const newSettings = agent.getExecutionSettings();
+      if (managed.intervalId && prev.cycleIntervalMs !== newSettings.cycleIntervalMs) {
+        clearInterval(managed.intervalId);
+        managed.intervalId = setInterval(async () => {
+          await this.runAgentCycle(agentId);
+        }, newSettings.cycleIntervalMs);
+        logger.info('Agent cycle interval updated', { agentId, newInterval: newSettings.cycleIntervalMs });
+      }
+    }
+
+    logger.info('Agent config updated', { agentId });
+    return success(agent.getInfo());
   }
 
   /**
