@@ -32,7 +32,10 @@ export type TransactionType =
   | 'airdrop'
   | 'transfer_sol'
   | 'transfer_spl'
-  | 'create_token_account';
+  | 'create_token_account'
+  | 'raw_execute'
+  | 'swap'
+  | 'create_token';
 
 export interface Agent {
   id: string;

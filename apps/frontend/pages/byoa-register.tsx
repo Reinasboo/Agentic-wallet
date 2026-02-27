@@ -29,7 +29,7 @@ const INTENT_OPTIONS = [
   { id: 'TRANSFER_SOL', label: 'Transfer SOL' },
   { id: 'TRANSFER_TOKEN', label: 'Transfer SPL Token' },
   { id: 'QUERY_BALANCE', label: 'Query Balance' },
-  { id: 'AUTONOMOUS', label: 'Autonomous (unrestricted)' },
+  { id: 'AUTONOMOUS', label: 'Autonomous (full DeFi — Pump.fun, Jupiter, PumpSwap, any program)' },
 ];
 
 export default function BYOARegisterPage() {

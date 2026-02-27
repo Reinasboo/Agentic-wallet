@@ -22,7 +22,7 @@ const ConfigSchema = z.object({
   KEY_ENCRYPTION_SECRET: z.string().min(16).default('dev-secret-change-in-production'),
   
   // Agent
-  MAX_AGENTS: z.coerce.number().int().positive().default(10),
+  MAX_AGENTS: z.coerce.number().int().positive().default(20),
   AGENT_LOOP_INTERVAL_MS: z.coerce.number().int().positive().default(5000),
   
   // Transaction

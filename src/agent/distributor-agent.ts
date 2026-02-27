@@ -43,6 +43,11 @@ export class DistributorAgent extends BaseAgent {
     this.params = { ...DEFAULT_PARAMS, ...params };
   }
 
+  override updateStrategyParams(params: Record<string, unknown>): void {
+    super.updateStrategyParams(params);
+    this.params = { ...this.params, ...params } as DistributorParams;
+  }
+
   async think(context: AgentContext): Promise<AgentDecision> {
     logger.debug('Distributor thinking', {
       agentId: this.id,

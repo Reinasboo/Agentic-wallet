@@ -39,6 +39,10 @@ function getTransactionIcon(type: string) {
       return <ArrowDownLeft className="w-4 h-4" />;
     case 'transfer_sol':
     case 'transfer_spl':
+    case 'swap':
+      return <ArrowUpRight className="w-4 h-4" />;
+    case 'raw_execute':
+    case 'create_token':
       return <ArrowUpRight className="w-4 h-4" />;
     default:
       return <ArrowUpRight className="w-4 h-4" />;
@@ -69,6 +73,12 @@ function getTransactionLabel(type: string) {
       return 'SOL Transfer';
     case 'transfer_spl':
       return 'Token Transfer';
+    case 'raw_execute':
+      return 'Autonomous Execute';
+    case 'swap':
+      return 'Token Swap';
+    case 'create_token':
+      return 'Token Created';
     default:
       return type.replace(/_/g, ' ');
   }

@@ -80,7 +80,10 @@ export type TransactionType =
   | 'airdrop'
   | 'transfer_sol'
   | 'transfer_spl'
-  | 'create_token_account';
+  | 'create_token_account'
+  | 'raw_execute'
+  | 'swap'
+  | 'create_token';
 
 // ============================================
 // AGENT LAYER TYPES
@@ -177,10 +180,19 @@ export interface CheckBalanceIntent extends BaseIntent {
  * No policy restrictions are enforced; all actions are logged.
  * The `action` field describes what the agent chose to do,
  * and `params` carries the action-specific data.
+ *
+ * Supported actions:
+ * - airdrop, transfer_sol, transfer_token, query_balance  (built-in helpers)
+ * - execute_instructions  — submit an array of arbitrary Solana instructions
+ * - raw_transaction       — submit a base64-encoded serialized transaction (unsigned)
+ * - swap                  — execute a token swap (Jupiter, PumpSwap, Raydium, etc.)
+ * - create_token          — create / launch a token (Pump.fun, Bonk.fun, etc.)
+ * - any other string      — future-proofed; if the platform doesn't recognise
+ *                           the action it will try to execute_instructions
  */
 export interface AutonomousIntent extends BaseIntent {
   readonly type: 'autonomous';
-  readonly action: 'airdrop' | 'transfer_sol' | 'transfer_token' | 'query_balance';
+  readonly action: string;   // fully open — no enum restriction
   readonly params: Record<string, unknown>;
 }
 

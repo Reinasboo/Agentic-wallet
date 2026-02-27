@@ -38,6 +38,11 @@ export class BalanceGuardAgent extends BaseAgent {
     this.params = { ...DEFAULT_PARAMS, ...params };
   }
 
+  override updateStrategyParams(params: Record<string, unknown>): void {
+    super.updateStrategyParams(params);
+    this.params = { ...this.params, ...params } as BalanceGuardParams;
+  }
+
   async think(context: AgentContext): Promise<AgentDecision> {
     if (this.airdropsToday >= this.params.maxAirdropsPerDay) {
       return { shouldAct: false, reasoning: `Daily airdrop limit reached (${this.params.maxAirdropsPerDay})` };
@@ -62,10 +67,5 @@ export class BalanceGuardAgent extends BaseAgent {
 
   resetDailyCounters(): void {
     this.airdropsToday = 0;
-  }
-
-  override updateStrategyParams(params: Record<string, unknown>): void {
-    super.updateStrategyParams(params);
-    this.params = { ...this.params, ...params } as BalanceGuardParams;
   }
 }

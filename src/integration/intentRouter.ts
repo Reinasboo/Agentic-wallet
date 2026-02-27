@@ -21,7 +21,8 @@ import { PublicKey } from '@solana/web3.js';
 import { createLogger } from '../utils/logger.js';
 import { Result, success, failure, Intent, BalanceInfo } from '../utils/types.js';
 import { getWalletManager, WalletManager } from '../wallet/index.js';
-import { getSolanaClient, buildSolTransfer, buildTokenTransfer, SolanaClient } from '../rpc/index.js';
+import { getSolanaClient, buildSolTransfer, buildTokenTransfer, buildArbitraryTransaction, deserializeTransaction, KNOWN_PROGRAMS, SolanaClient } from '../rpc/index.js';
+import type { InstructionDescriptor } from '../rpc/index.js';
 import { getAgentRegistry, AgentRegistry, ExternalAgentRecord, SupportedIntentType } from './agentRegistry.js';
 import { eventBus } from '../orchestrator/event-emitter.js';
 
@@ -453,6 +454,17 @@ export class IntentRouter {
    * parameters.  No wallet-policy restrictions are applied — the agent has
    * unrestricted access.  Every action is still fully logged in intent
    * history and emitted as a system event so the operator can audit.
+   *
+   * Supported actions:
+   *   airdrop            – request devnet SOL
+   *   transfer_sol       – send SOL (no policy check)
+   *   transfer_token     – send SPL tokens (no policy check)
+   *   query_balance      – read wallet balance
+   *   execute_instructions – submit arbitrary Solana instructions (any program)
+   *   raw_transaction    – submit a base64 serialized transaction (unsigned)
+   *   swap               – token swap via Jupiter / PumpSwap / Raydium / Orca
+   *   create_token       – launch token via Pump.fun / Bonk.fun / Metaplex
+   *   <any other>        – treated as execute_instructions if `instructions` param present
    */
   private async executeAutonomous(
     walletId: string,
@@ -466,7 +478,7 @@ export class IntentRouter {
       agentId,
       intentId,
       action,
-      params,
+      params: Object.keys(params),
     });
 
     // Emit a dedicated event so operators can follow autonomous actions in
@@ -493,10 +505,29 @@ export class IntentRouter {
       case 'query_balance':
         return this.executeQueryBalance(walletId);
 
+      case 'execute_instructions':
+        return this.executeArbitraryInstructions(walletId, agentId, params, intentId);
+
+      case 'raw_transaction':
+        return this.executeRawTransaction(walletId, agentId, params, intentId);
+
+      case 'swap':
+        return this.executeSwap(walletId, agentId, params, intentId);
+
+      case 'create_token':
+        return this.executeCreateToken(walletId, agentId, params, intentId);
+
       default:
+        // If the agent sent an unknown action but included `instructions`,
+        // treat it as arbitrary instruction execution for forward-compatibility.
+        if (Array.isArray(params['instructions'])) {
+          logger.info(`Unknown action "${action}" but instructions present — executing as arbitrary instructions`);
+          return this.executeArbitraryInstructions(walletId, agentId, params, intentId);
+        }
         throw new Error(
           `Autonomous intent: unknown action "${action}". ` +
-          'Supported: airdrop, transfer_sol, transfer_token, query_balance',
+          'Supported: airdrop, transfer_sol, transfer_token, query_balance, ' +
+          'execute_instructions, raw_transaction, swap, create_token',
         );
     }
   }
@@ -607,6 +638,261 @@ export class IntentRouter {
     });
 
     return { signature: sendResult.value.signature, amount, recipient, mint, autonomous: true };
+  }
+
+  // ── EXECUTE_INSTRUCTIONS (any Solana program) ─
+
+  /**
+   * Submit an array of arbitrary Solana instructions.
+   * This enables interaction with ANY deployed program: Pump.fun, Jupiter,
+   * PumpSwap, Raydium, Orca Whirlpool, Bonk.fun, Metaplex, custom programs, etc.
+   *
+   * params.instructions: InstructionDescriptor[]
+   *   Each: { programId, keys: [{pubkey, isSigner, isWritable}], data (base64) }
+   * params.memo?: string  — optional on-chain memo
+   */
+  private async executeArbitraryInstructions(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const instructions = params['instructions'] as InstructionDescriptor[] | undefined;
+    if (!Array.isArray(instructions) || instructions.length === 0) {
+      throw new Error('execute_instructions requires a non-empty "instructions" array');
+    }
+
+    // Validate each instruction descriptor
+    for (let i = 0; i < instructions.length; i++) {
+      const ix = instructions[i]!;
+      if (!ix.programId || !Array.isArray(ix.keys) || typeof ix.data !== 'string') {
+        throw new Error(`Instruction[${i}] missing required fields: programId, keys[], data (base64)`);
+      }
+    }
+
+    const memo = typeof params['memo'] === 'string'
+      ? params['memo']
+      : `AgenticWallet:autonomous_exec:${agentId}`;
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    // Build the transaction from arbitrary instructions
+    const txResult = await buildArbitraryTransaction(pubkeyResult.value, instructions, memo);
+    if (!txResult.ok) throw txResult.error;
+
+    // Sign via wallet layer
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    // Submit
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    const programs = instructions.map((ix) => KNOWN_PROGRAMS[ix.programId] ?? ix.programId.slice(0, 8) + '...');
+
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(), walletId, type: 'raw_execute', status: 'confirmed',
+        signature: sendResult.value.signature,
+        createdAt: new Date(), confirmedAt: new Date(),
+      },
+    });
+
+    logger.info('Arbitrary instructions executed', {
+      agentId, signature: sendResult.value.signature,
+      numInstructions: instructions.length, programs,
+    });
+
+    return {
+      signature: sendResult.value.signature,
+      numInstructions: instructions.length,
+      programs,
+      autonomous: true,
+    };
+  }
+
+  // ── RAW_TRANSACTION (base64 wire format) ──
+
+  /**
+   * Submit a base64-encoded serialized transaction.
+   * The platform refreshes the blockhash, sets the agent's wallet as fee payer,
+   * signs it, and submits.
+   *
+   * params.transaction: string (base64)
+   */
+  private async executeRawTransaction(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const rawTx = typeof params['transaction'] === 'string' ? params['transaction'] : '';
+    if (!rawTx) {
+      throw new Error('raw_transaction requires a "transaction" param (base64 serialized)');
+    }
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    const txResult = await deserializeTransaction(rawTx, pubkeyResult.value);
+    if (!txResult.ok) throw txResult.error;
+
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(), walletId, type: 'raw_execute', status: 'confirmed',
+        signature: sendResult.value.signature,
+        createdAt: new Date(), confirmedAt: new Date(),
+      },
+    });
+
+    logger.info('Raw transaction executed', { agentId, signature: sendResult.value.signature });
+
+    return { signature: sendResult.value.signature, autonomous: true, raw: true };
+  }
+
+  // ── SWAP (Jupiter / PumpSwap / Raydium / Orca) ─
+
+  /**
+   * Execute a token swap.
+   * The agent sends the swap instructions pre-built from Jupiter API, PumpSwap,
+   * Raydium, or any other DEX.  The platform signs and submits.
+   *
+   * params.instructions: InstructionDescriptor[]  (swap route instructions)
+   * params.inputMint?:  string   (for logging)
+   * params.outputMint?: string   (for logging)
+   * params.amount?:     number   (for logging)
+   * params.dex?:        string   (e.g. 'jupiter', 'pumpswap', 'raydium', 'orca')
+   */
+  private async executeSwap(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const instructions = params['instructions'] as InstructionDescriptor[] | undefined;
+    if (!Array.isArray(instructions) || instructions.length === 0) {
+      throw new Error('swap requires "instructions" array (from DEX route API)');
+    }
+
+    const dex = typeof params['dex'] === 'string' ? params['dex'] : 'unknown';
+    const inputMint = typeof params['inputMint'] === 'string' ? params['inputMint'] : '';
+    const outputMint = typeof params['outputMint'] === 'string' ? params['outputMint'] : '';
+    const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
+
+    const memo = `AgenticWallet:swap:${dex}:${agentId}`;
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    const txResult = await buildArbitraryTransaction(pubkeyResult.value, instructions, memo);
+    if (!txResult.ok) throw txResult.error;
+
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(), walletId, type: 'swap', status: 'confirmed',
+        amount, signature: sendResult.value.signature,
+        createdAt: new Date(), confirmedAt: new Date(),
+      },
+    });
+
+    logger.info('Swap executed', { agentId, dex, inputMint, outputMint, amount, signature: sendResult.value.signature });
+
+    return {
+      signature: sendResult.value.signature,
+      dex, inputMint, outputMint, amount,
+      autonomous: true,
+    };
+  }
+
+  // ── CREATE_TOKEN (Pump.fun / Bonk.fun / Metaplex) ─
+
+  /**
+   * Create or launch a token.
+   * The agent sends pre-built instructions from Pump.fun, Bonk.fun, or
+   * Metaplex.  The platform signs and submits.
+   *
+   * params.instructions: InstructionDescriptor[]  (create/launch instructions)
+   * params.platform?:   string  ('pump_fun', 'bonk_fun', 'metaplex')
+   * params.tokenName?:  string  (for logging)
+   * params.tokenSymbol?: string (for logging)
+   */
+  private async executeCreateToken(
+    walletId: string,
+    agentId: string,
+    params: Record<string, unknown>,
+    _intentId: string,
+  ): Promise<Record<string, unknown>> {
+    const instructions = params['instructions'] as InstructionDescriptor[] | undefined;
+    if (!Array.isArray(instructions) || instructions.length === 0) {
+      throw new Error('create_token requires "instructions" array (from launchpad API)');
+    }
+
+    const platform = typeof params['platform'] === 'string' ? params['platform'] : 'unknown';
+    const tokenName = typeof params['tokenName'] === 'string' ? params['tokenName'] : '';
+    const tokenSymbol = typeof params['tokenSymbol'] === 'string' ? params['tokenSymbol'] : '';
+
+    const memo = `AgenticWallet:create_token:${platform}:${tokenSymbol || 'TOKEN'}:${agentId}`;
+
+    const pubkeyResult = this.walletManager.getPublicKey(walletId);
+    if (!pubkeyResult.ok) throw pubkeyResult.error;
+
+    const txResult = await buildArbitraryTransaction(pubkeyResult.value, instructions, memo);
+    if (!txResult.ok) throw txResult.error;
+
+    const signResult = this.walletManager.signTransaction(walletId, txResult.value);
+    if (!signResult.ok) throw signResult.error;
+
+    const sendResult = await this.solanaClient.sendTransaction(signResult.value);
+    if (!sendResult.ok) throw sendResult.error;
+
+    this.walletManager.recordTransfer(walletId);
+
+    eventBus.emit({
+      id: uuidv4(),
+      type: 'transaction',
+      timestamp: new Date(),
+      transaction: {
+        id: uuidv4(), walletId, type: 'create_token', status: 'confirmed',
+        signature: sendResult.value.signature,
+        createdAt: new Date(), confirmedAt: new Date(),
+      },
+    });
+
+    logger.info('Token created', { agentId, platform, tokenName, tokenSymbol, signature: sendResult.value.signature });
+
+    return {
+      signature: sendResult.value.signature,
+      platform, tokenName, tokenSymbol,
+      autonomous: true,
+    };
   }
 
   // ── History ──────────────────────────────

@@ -39,8 +39,8 @@ app.use(cors({
   methods: ['GET', 'POST', 'PATCH'],
 }));
 
-// Limit request body size to prevent DoS
-app.use(express.json({ limit: '100kb' }));
+// Limit request body size to prevent DoS (512kb for raw transactions)
+app.use(express.json({ limit: '512kb' }));
 
 // Request logging middleware
 app.use((req: Request, _res: Response, next: NextFunction) => {
@@ -557,7 +557,13 @@ const RegisterAgentSchema = z.object({
 const SubmitIntentSchema = z.object({
   type: z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS']),
   params: z.record(z.unknown()).default({}),
-});
+}).refine((data) => {
+  // For AUTONOMOUS intents, ensure `action` is present
+  if (data.type === 'AUTONOMOUS' && typeof data.params['action'] !== 'string') {
+    return false;
+  }
+  return true;
+}, { message: 'AUTONOMOUS intents require params.action (string)' });
 
 /**
  * Register an external agent and receive a wallet + control token.

@@ -241,3 +241,133 @@ export async function estimateFee(transaction: Transaction): Promise<Result<numb
     return failure(error instanceof Error ? error : new Error(String(error)));
   }
 }
+
+// ============================================
+// AUTONOMOUS / RAW EXECUTION HELPERS
+// ============================================
+
+/**
+ * Well-known Solana program IDs for DeFi protocols.
+ * These are used for logging and display, not for routing.
+ */
+export const KNOWN_PROGRAMS: Record<string, string> = {
+  '11111111111111111111111111111111': 'System Program',
+  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA': 'Token Program',
+  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL': 'Associated Token Program',
+  'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr': 'Memo Program v2',
+  '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'Pump.fun',
+  'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA': 'PumpSwap AMM',
+  'BoNKFKgVR4AhBCbFvEJhEEGwBwMgh4xnSuFgrEbGo3xj': 'Bonk.fun',
+  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4': 'Jupiter v6',
+  'jupoNjAxXgZ4rjzxzPMP4oxduvQsQtZzyknqvzYNrNu': 'Jupiter v6 Aggregator',
+  '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8': 'Raydium AMM v4',
+  'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc': 'Orca Whirlpool',
+  'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK': 'Raydium CLMM',
+  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s': 'Metaplex Token Metadata',
+  'cndy3Z4yapfJBmearM12BSwWbJyVnDErehJuiPaM2mn': 'Candy Machine v2',
+};
+
+/**
+ * Instruction descriptor sent by the autonomous agent.
+ * Each instruction targets a specific program with accounts and data.
+ */
+export interface InstructionDescriptor {
+  programId: string;                              // base58 program address
+  keys: Array<{
+    pubkey: string;                               // base58
+    isSigner: boolean;
+    isWritable: boolean;
+  }>;
+  data: string;                                   // base64-encoded instruction data
+}
+
+/**
+ * Build a transaction from an array of arbitrary instruction descriptors.
+ * The payer is the agent's wallet (set as feePayer).
+ * This enables interaction with ANY Solana program — Pump.fun, Jupiter,
+ * PumpSwap, Raydium, Bonk.fun, or any custom program.
+ */
+export async function buildArbitraryTransaction(
+  payer: PublicKey,
+  instructions: InstructionDescriptor[],
+  memo?: string,
+): Promise<Result<Transaction, Error>> {
+  try {
+    if (!instructions || instructions.length === 0) {
+      return failure(new Error('At least one instruction is required'));
+    }
+
+    const client = getSolanaClient();
+    const blockhashResult = await client.getRecentBlockhash();
+    if (!blockhashResult.ok) return failure(blockhashResult.error);
+
+    const transaction = new Transaction({
+      recentBlockhash: blockhashResult.value,
+      feePayer: payer,
+    });
+
+    for (const ix of instructions) {
+      const programId = new PublicKey(ix.programId);
+      const keys = ix.keys.map((k) => ({
+        pubkey: new PublicKey(k.pubkey),
+        isSigner: k.isSigner,
+        isWritable: k.isWritable,
+      }));
+      const data = Buffer.from(ix.data, 'base64');
+
+      transaction.add(new TransactionInstruction({ programId, keys, data }));
+
+      const programName = KNOWN_PROGRAMS[ix.programId] ?? ix.programId.slice(0, 8) + '...';
+      logger.debug('Added instruction', { programName, numKeys: keys.length, dataLen: data.length });
+    }
+
+    // Optionally append a memo for audit trail
+    if (memo) {
+      transaction.add(buildMemoInstruction(memo, payer));
+    }
+
+    logger.info('Built arbitrary transaction', {
+      payer: payer.toBase58(),
+      numInstructions: instructions.length + (memo ? 1 : 0),
+      programs: instructions.map((ix) => KNOWN_PROGRAMS[ix.programId] ?? ix.programId.slice(0, 8)),
+    });
+
+    return success(transaction);
+  } catch (error) {
+    logger.error('Failed to build arbitrary transaction', { error: String(error) });
+    return failure(error instanceof Error ? error : new Error(String(error)));
+  }
+}
+
+/**
+ * Deserialize a base64-encoded transaction (wire format) and return a
+ * Transaction object ready for signing.  The payer's recent blockhash is
+ * refreshed to prevent the agent from using a stale one.
+ */
+export async function deserializeTransaction(
+  base64Tx: string,
+  payer: PublicKey,
+): Promise<Result<Transaction, Error>> {
+  try {
+    const buffer = Buffer.from(base64Tx, 'base64');
+    const transaction = Transaction.from(buffer);
+
+    // Refresh blockhash so the transaction is valid
+    const client = getSolanaClient();
+    const bh = await client.getRecentBlockhash();
+    if (!bh.ok) return failure(bh.error);
+
+    transaction.recentBlockhash = bh.value;
+    transaction.feePayer = payer;
+
+    logger.info('Deserialized raw transaction', {
+      payer: payer.toBase58(),
+      numInstructions: transaction.instructions.length,
+    });
+
+    return success(transaction);
+  } catch (error) {
+    logger.error('Failed to deserialize transaction', { error: String(error) });
+    return failure(error instanceof Error ? error : new Error(String(error)));
+  }
+}

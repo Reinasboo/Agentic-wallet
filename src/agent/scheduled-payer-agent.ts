@@ -40,6 +40,11 @@ export class ScheduledPayerAgent extends BaseAgent {
     this.params = { ...DEFAULT_PARAMS, ...params };
   }
 
+  override updateStrategyParams(params: Record<string, unknown>): void {
+    super.updateStrategyParams(params);
+    this.params = { ...this.params, ...params } as ScheduledPayerParams;
+  }
+
   async think(context: AgentContext): Promise<AgentDecision> {
     if (!this.params.recipient) {
       return { shouldAct: false, reasoning: 'No recipient configured' };
@@ -74,10 +79,5 @@ export class ScheduledPayerAgent extends BaseAgent {
 
   resetDailyCounters(): void {
     this.paymentsToday = 0;
-  }
-
-  override updateStrategyParams(params: Record<string, unknown>): void {
-    super.updateStrategyParams(params);
-    this.params = { ...this.params, ...params } as ScheduledPayerParams;
   }
 }

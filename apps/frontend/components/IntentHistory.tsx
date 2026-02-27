@@ -59,6 +59,23 @@ function IntentRow({ record }: IntentRowProps) {
   const Icon = config.icon;
   const isExecuted = record.status === 'executed';
 
+  // Build a richer label for autonomous intents
+  let label = config.label;
+  if (record.type === 'AUTONOMOUS' && record.params?.action) {
+    const action = String(record.params.action);
+    const actionLabels: Record<string, string> = {
+      airdrop: 'Auto Airdrop',
+      transfer_sol: 'Auto Transfer',
+      transfer_token: 'Auto Token Transfer',
+      query_balance: 'Auto Balance Check',
+      execute_instructions: 'Arbitrary Execute',
+      raw_transaction: 'Raw Transaction',
+      swap: `Swap${record.params.dex ? ' (' + record.params.dex + ')' : ''}`,
+      create_token: `Create Token${record.params.platform ? ' (' + record.params.platform + ')' : ''}`,
+    };
+    label = actionLabels[action] ?? `Autonomous: ${action}`;
+  }
+
   return (
     <motion.div
       initial={{ opacity: 0, x: -4 }}
@@ -74,8 +91,13 @@ function IntentRow({ record }: IntentRowProps) {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
           <span className="text-body font-medium text-text-primary">
-            {config.label}
+            {label}
           </span>
+          {record.type === 'AUTONOMOUS' && (
+            <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 font-semibold uppercase">
+              autonomous
+            </span>
+          )}
           <span
             className={cn(
               'inline-flex items-center gap-1 text-caption font-medium',
@@ -95,6 +117,7 @@ function IntentRow({ record }: IntentRowProps) {
             ? record.error
             : record.result
               ? Object.entries(record.result)
+                  .filter(([k]) => k !== 'autonomous')
                   .map(([k, v]) => `${k}: ${v}`)
                   .join(', ')
               : 'No details'}

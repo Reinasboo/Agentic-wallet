@@ -393,6 +393,10 @@ export class Orchestrator {
         : undefined;
       const error = lastTx.status === 'failed' ? lastTx.error : undefined;
       this.recordIntentHistory(intentId, agent.id, intent, status, result, error, createdAt);
+    } else {
+      // Execution method returned early without creating a transaction
+      // (e.g. getPublicKey failure). Still record the intent so it isn't silently dropped.
+      this.recordIntentHistory(intentId, agent.id, intent, 'rejected', undefined, 'Execution failed — no transaction created', createdAt);
     }
   }
 
@@ -433,6 +437,16 @@ export class Orchestrator {
       logger.error('Failed to get public key for airdrop', {
         walletId,
         error: publicKeyResult.error.message,
+      });
+      // Push a failed transaction so the intent recorder can find it
+      this.transactions.push({
+        id: uuidv4(),
+        walletId,
+        type: 'airdrop',
+        status: 'failed',
+        amount,
+        error: publicKeyResult.error.message,
+        createdAt: new Date(),
       });
       return;
     }
@@ -483,6 +497,13 @@ export class Orchestrator {
           status: 'failed',
           error: result.error.message,
         };
+
+        eventBus.emit({
+          id: uuidv4(),
+          type: 'transaction',
+          timestamp: new Date(),
+          transaction: this.transactions[idx]!,
+        });
       }
 
       logger.error('Airdrop failed', {
@@ -505,6 +526,7 @@ export class Orchestrator {
     const publicKeyResult = this.walletManager.getPublicKey(walletId);
     if (!publicKeyResult.ok) {
       logger.error('Failed to get public key for transfer', { walletId });
+      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_sol', status: 'failed', amount, recipient, error: publicKeyResult.error.message, createdAt: new Date() });
       return;
     }
 
@@ -513,6 +535,7 @@ export class Orchestrator {
       recipientPubkey = new PublicKey(recipient);
     } catch {
       logger.error('Invalid recipient address', { recipient });
+      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_sol', status: 'failed', amount, recipient, error: 'Invalid recipient address', createdAt: new Date() });
       return;
     }
 
@@ -597,6 +620,7 @@ export class Orchestrator {
     const publicKeyResult = this.walletManager.getPublicKey(walletId);
     if (!publicKeyResult.ok) {
       logger.error('Failed to get public key for token transfer', { walletId });
+      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_spl', status: 'failed', amount, recipient, mint, error: publicKeyResult.error.message, createdAt: new Date() });
       return;
     }
 
@@ -607,6 +631,7 @@ export class Orchestrator {
       mintPubkey = new PublicKey(mint);
     } catch {
       logger.error('Invalid address for token transfer', { recipient, mint });
+      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_spl', status: 'failed', amount, recipient, mint, error: 'Invalid address', createdAt: new Date() });
       return;
     }
 
@@ -762,6 +787,14 @@ export class Orchestrator {
           status: 'failed',
           error,
         };
+
+        // Emit so the frontend sees failed transactions in real-time
+        eventBus.emit({
+          id: uuidv4(),
+          type: 'transaction',
+          timestamp: new Date(),
+          transaction: this.transactions[idx]!,
+        });
       }
     }
   }
