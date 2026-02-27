@@ -320,18 +320,35 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [x] Orchestrator records built-in agent intents to IntentRouter for centralized logging
 - [x] Unhandled rejection / uncaught exception handlers
 - [x] Production-mode encryption secret validation
-- [x] Request body size limit (100 KB)
+- [x] Request body size limit (512 KB)
+- [x] Admin API key authentication on all mutation endpoints (X-Admin-Key header)
+- [x] BYOA registration requires admin auth (no open registration)
+- [x] Autonomous intent safety guardrails (rate limits, transfer caps, min balance)
+- [x] Prototype pollution prevention (Zod record transforms strip __proto__/constructor)
+- [x] Error response sanitization (no stack traces leaked)
+- [x] Configurable CORS origins via CORS_ORIGINS env var
+- [x] WebSocket origin validation
+- [x] Token transfer decimal awareness (callers specify decimals, not hardcoded 9)
+- [x] Raw transaction inspection logging (programs audited before signing)
+- [x] RateLimiter stale entry cleanup (prevents memory leaks)
+- [x] EventBus subscriber limit (max 100)
+- [x] EventBus amortized O(1) history trimming
+- [x] Startup warnings for default encryption secret / admin key
 
 ### Recommended for Production
 - [ ] HSM integration
 - [ ] TLS/HTTPS everywhere
-- [ ] API authentication
+- [x] API authentication (admin key)
 - [ ] Multi-signature wallets
 - [ ] Key rotation
 - [ ] Backup/recovery procedures
 - [ ] Security monitoring
 - [ ] Penetration testing
 - [ ] Formal audit
+- [ ] Persistent state (database) instead of in-memory
+- [ ] Cryptographic randomness for agent behavior (replace Math.random)
+- [ ] Recipient address validation at agent construction time
+- [ ] Auto-generated frontend types from backend schemas
 
 ## Incident Response
 

@@ -15,11 +15,17 @@ class EventBus {
   private handlers: Set<EventHandler> = new Set();
   private eventHistory: SystemEvent[] = [];
   private maxHistorySize: number = 1000;
+  private maxSubscribers: number = 100;
 
   /**
    * Subscribe to all events
    */
   subscribe(handler: EventHandler): () => void {
+    // L-6: Prevent unbounded subscriber growth
+    if (this.handlers.size >= this.maxSubscribers) {
+      console.warn(`EventBus: max subscribers (${this.maxSubscribers}) reached, rejecting subscription`);
+      return () => {}; // no-op unsubscribe
+    }
     this.handlers.add(handler);
     return () => this.handlers.delete(handler);
   }
@@ -28,10 +34,11 @@ class EventBus {
    * Emit an event to all subscribers
    */
   emit(event: SystemEvent): void {
-    // Store in history
+    // Store in history (M-4: use slice trim instead of O(n) shift)
     this.eventHistory.push(event);
-    if (this.eventHistory.length > this.maxHistorySize) {
-      this.eventHistory.shift();
+    if (this.eventHistory.length > this.maxHistorySize * 1.5) {
+      // Trim once we've grown 50% over max — amortized O(1)
+      this.eventHistory = this.eventHistory.slice(-this.maxHistorySize);
     }
 
     // Notify all handlers

@@ -71,6 +71,8 @@ class RateLimiter {
   /** agentId → timestamps */
   private windows: Map<string, number[]> = new Map();
   private maxPerMinute: number;
+  private lastCleanup: number = Date.now();
+  private cleanupIntervalMs: number = 300_000; // 5 minutes
 
   constructor(maxPerMinute: number = 30) {
     this.maxPerMinute = maxPerMinute;
@@ -79,6 +81,13 @@ class RateLimiter {
   check(agentId: string): boolean {
     const now = Date.now();
     const windowMs = 60_000;
+
+    // M-5: Periodically purge stale entries from agents that are no longer active
+    if (now - this.lastCleanup > this.cleanupIntervalMs) {
+      this.cleanup(now, windowMs);
+      this.lastCleanup = now;
+    }
+
     let timestamps = this.windows.get(agentId) ?? [];
     timestamps = timestamps.filter((t) => now - t < windowMs);
     if (timestamps.length >= this.maxPerMinute) {
@@ -88,6 +97,18 @@ class RateLimiter {
     timestamps.push(now);
     this.windows.set(agentId, timestamps);
     return true;
+  }
+
+  /** Remove entries with no recent activity */
+  private cleanup(now: number, windowMs: number): void {
+    for (const [agentId, timestamps] of this.windows) {
+      const active = timestamps.filter((t) => now - t < windowMs);
+      if (active.length === 0) {
+        this.windows.delete(agentId);
+      } else {
+        this.windows.set(agentId, active);
+      }
+    }
   }
 }
 
@@ -401,14 +422,18 @@ export class IntentRouter {
     const validResult = this.walletManager.validateIntent(walletId, internalIntent, balanceResult.value.sol);
     if (!validResult.ok) throw validResult.error;
 
-    // Build SPL token transfer (includes Memo Program interaction)
-    const rawAmount = BigInt(Math.round(amount * 1e9));
+    // H-3/H-4: Accept decimals from params (default 9 for SOL-like tokens).
+    // Callers SHOULD specify decimals for non-9-decimal tokens (e.g. USDC=6).
+    const decimals = typeof params['decimals'] === 'number'
+      ? Math.min(Math.max(Math.floor(params['decimals']), 0), 18)
+      : 9;
+    const rawAmount = BigInt(Math.round(amount * Math.pow(10, decimals)));
     const txResult = await buildTokenTransfer(
       pubkeyResult.value,
       mintPubkey,
       recipientPubkey,
       rawAmount,
-      9,
+      decimals,
       `AgenticWallet:byoa_token_transfer:${agentId}`,
     );
     if (!txResult.ok) throw txResult.error;
@@ -610,10 +635,13 @@ export class IntentRouter {
     const pubkeyResult = this.walletManager.getPublicKey(walletId);
     if (!pubkeyResult.ok) throw pubkeyResult.error;
 
-    // Build SPL token transfer — NO policy check
-    const rawAmount = BigInt(Math.round(amount * 1e9));
+    // H-3/H-4: Accept decimals from params (default 9 for SOL-like tokens).
+    const decimals = typeof params['decimals'] === 'number'
+      ? Math.min(Math.max(Math.floor(params['decimals']), 0), 18)
+      : 9;
+    const rawAmount = BigInt(Math.round(amount * Math.pow(10, decimals)));
     const txResult = await buildTokenTransfer(
-      pubkeyResult.value, mintPubkey, recipientPubkey, rawAmount, 9,
+      pubkeyResult.value, mintPubkey, recipientPubkey, rawAmount, decimals,
       `AgenticWallet:autonomous_token:${agentId}`,
     );
     if (!txResult.ok) throw txResult.error;
@@ -742,6 +770,19 @@ export class IntentRouter {
 
     const txResult = await deserializeTransaction(rawTx, pubkeyResult.value);
     if (!txResult.ok) throw txResult.error;
+
+    // H-1: Inspect the deserialized transaction — log all programs being invoked
+    // so operators can audit what external agents submit via raw_transaction.
+    const txInstructions = txResult.value.instructions ?? [];
+    const invokedPrograms = txInstructions.map((ix: { programId: { toBase58(): string } }) => {
+      const pid = ix.programId.toBase58();
+      return KNOWN_PROGRAMS[pid] ?? pid;
+    });
+    logger.info('Raw transaction inspection', {
+      agentId,
+      numInstructions: txInstructions.length,
+      programs: invokedPrograms,
+    });
 
     const signResult = this.walletManager.signTransaction(walletId, txResult.value);
     if (!signResult.ok) throw signResult.error;

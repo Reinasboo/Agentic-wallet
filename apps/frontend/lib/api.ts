@@ -20,6 +20,12 @@ import type {
 } from './types';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001';
+const ADMIN_API_KEY = process.env.NEXT_PUBLIC_ADMIN_API_KEY || 'dev-admin-key-change-in-production';
+
+/** Headers for admin-authenticated mutation requests */
+function adminHeaders(): Record<string, string> {
+  return { 'X-Admin-Key': ADMIN_API_KEY };
+}
 
 async function fetchApi<T>(
   endpoint: string,
@@ -33,6 +39,21 @@ async function fetchApi<T>(
         ...options?.headers,
       },
     });
+
+    // M-6: Check HTTP status before parsing JSON
+    if (!response.ok) {
+      // Try to parse error body, fall back to status text
+      try {
+        const errorData = await response.json();
+        return errorData as ApiResponse<T>;
+      } catch {
+        return {
+          success: false,
+          error: `HTTP ${response.status}: ${response.statusText}`,
+          timestamp: new Date().toISOString(),
+        };
+      }
+    }
 
     const data = await response.json();
     return data as ApiResponse<T>;
@@ -76,6 +97,7 @@ export async function createAgent(data: {
 }): Promise<ApiResponse<Agent>> {
   return fetchApi('/api/agents', {
     method: 'POST',
+    headers: adminHeaders(),
     body: JSON.stringify(data),
   });
 }
@@ -93,6 +115,7 @@ export async function updateAgentConfig(
 ): Promise<ApiResponse<Agent>> {
   return fetchApi(`/api/agents/${id}/config`, {
     method: 'PATCH',
+    headers: adminHeaders(),
     body: JSON.stringify(data),
   });
 }
@@ -100,12 +123,14 @@ export async function updateAgentConfig(
 export async function startAgent(id: string): Promise<ApiResponse<void>> {
   return fetchApi(`/api/agents/${id}/start`, {
     method: 'POST',
+    headers: adminHeaders(),
   });
 }
 
 export async function stopAgent(id: string): Promise<ApiResponse<void>> {
   return fetchApi(`/api/agents/${id}/stop`, {
     method: 'POST',
+    headers: adminHeaders(),
   });
 }
 
@@ -189,6 +214,7 @@ export async function registerExternalAgent(data: {
 }): Promise<ApiResponse<BYOARegistrationResult>> {
   return fetchApi('/api/byoa/register', {
     method: 'POST',
+    headers: adminHeaders(),
     body: JSON.stringify(data),
   });
 }
@@ -228,17 +254,17 @@ export async function getAllIntentHistory(
 export async function deactivateExternalAgent(
   id: string
 ): Promise<ApiResponse<void>> {
-  return fetchApi(`/api/byoa/agents/${id}/deactivate`, { method: 'POST' });
+  return fetchApi(`/api/byoa/agents/${id}/deactivate`, { method: 'POST', headers: adminHeaders() });
 }
 
 export async function activateExternalAgent(
   id: string
 ): Promise<ApiResponse<void>> {
-  return fetchApi(`/api/byoa/agents/${id}/activate`, { method: 'POST' });
+  return fetchApi(`/api/byoa/agents/${id}/activate`, { method: 'POST', headers: adminHeaders() });
 }
 
 export async function revokeExternalAgent(
   id: string
 ): Promise<ApiResponse<void>> {
-  return fetchApi(`/api/byoa/agents/${id}/revoke`, { method: 'POST' });
+  return fetchApi(`/api/byoa/agents/${id}/revoke`, { method: 'POST', headers: adminHeaders() });
 }

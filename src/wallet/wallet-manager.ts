@@ -198,13 +198,46 @@ export class WalletManager {
       return failure(new Error('Daily transfer limit exceeded'));
     }
     
-    // Autonomous intents bypass ALL policy checks — the agent has full control.
+    // Autonomous intents still enforce basic safety guardrails:
+    // - Max transfer amount (prevents single-intent wallet drain)
+    // - Minimum balance requirement (keeps wallet operational)
+    // - Daily transfer count limit
     // Everything is still logged via intent history and transaction events.
     if (intent.type === 'autonomous') {
-      logger.info('Autonomous intent — policy bypass', {
+      logger.info('Autonomous intent — limited policy check', {
         walletId,
         action: (intent as import('../utils/types.js').AutonomousIntent).action,
       });
+
+      // Enforce daily transfer limit (autonomous gets 2x normal allowance)
+      const dailyCount = this.dailyTransfers.get(walletId) ?? 0;
+      if (dailyCount >= policy.maxDailyTransfers * 2) {
+        return failure(new Error(
+          `Autonomous intent: daily transfer limit reached (${dailyCount}/${policy.maxDailyTransfers * 2})`
+        ));
+      }
+
+      // Enforce max transfer amount for SOL transfers
+      const autonomousIntent = intent as import('../utils/types.js').AutonomousIntent;
+      const action = autonomousIntent.action;
+      if (action === 'transfer_sol' || action === 'transfer_token') {
+        // Check if amount is embedded in the intent
+      const amount = (intent as unknown as Record<string, unknown>)['amount'];
+        if (typeof amount === 'number' && amount > policy.maxTransferAmount * 2) {
+          return failure(new Error(
+            `Autonomous transfer amount ${amount} exceeds safety cap (${policy.maxTransferAmount * 2} SOL)`
+          ));
+        }
+      }
+
+      // Enforce minimum balance (0.05 SOL reserve for autonomous)
+      const minReserve = Math.max(policy.requireMinBalance, 0.05);
+      if (currentBalance < minReserve) {
+        return failure(new Error(
+          `Autonomous intent: wallet balance (${currentBalance} SOL) below safety reserve (${minReserve} SOL)`
+        ));
+      }
+
       return success(true);
     }
 

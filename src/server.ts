@@ -1,4 +1,4 @@
-/**
+﻿/**
  * API Server
  * 
  * REST API for the frontend to observe system state.
@@ -28,14 +28,18 @@ const logger = createLogger('API');
 
 const app = express();
 
-// Restrict CORS to expected origins
+// M-8: Configurable CORS origins via env var
 const config = getConfig();
+const corsOrigins = config.CORS_ORIGINS
+  ? config.CORS_ORIGINS.split(',').map((o: string) => o.trim()).filter(Boolean)
+  : [
+      `http://localhost:${config.PORT}`,
+      `http://localhost:3000`,
+      'http://127.0.0.1:3000',
+    ];
+
 app.use(cors({
-  origin: [
-    `http://localhost:${config.PORT}`,
-    `http://localhost:3000`,         // Next.js dev
-    'http://127.0.0.1:3000',
-  ],
+  origin: corsOrigins,
   methods: ['GET', 'POST', 'PATCH'],
 }));
 
@@ -52,7 +56,40 @@ app.use((req: Request, _res: Response, next: NextFunction) => {
   next();
 });
 
-// Root route — API index
+// ============================================
+// ADMIN AUTH MIDDLEWARE
+// ============================================
+
+/**
+ * C-1/C-2: Require admin API key for mutation endpoints.
+ * Expects header: X-Admin-Key: <ADMIN_API_KEY>
+ */
+function requireAdminAuth(req: Request, res: Response, next: NextFunction): void {
+  const adminKey = req.headers['x-admin-key'];
+  if (!adminKey || adminKey !== config.ADMIN_API_KEY) {
+    res.status(401).json({
+      success: false,
+      error: 'Missing or invalid X-Admin-Key header',
+      timestamp: new Date(),
+    });
+    return;
+  }
+  next();
+}
+
+/**
+ * Sanitize error for response â€” never leak stack traces.
+ * M-7: Error responses leak internal details.
+ */
+function sanitizeError(error: unknown): string {
+  if (error instanceof Error) {
+    // Only return the message, not the stack
+    return error.message;
+  }
+  return 'Internal server error';
+}
+
+// Root route â€” API index
 app.get('/', (_req: Request, res: Response) => {
   res.json({
     name: 'Agentic Wallet System',
@@ -72,11 +109,25 @@ app.get('/', (_req: Request, res: Response) => {
   });
 });
 
+// M-1: Strip prototype-polluting keys from z.record() to prevent __proto__ injection
+function stripDangerousKeys(obj: Record<string, unknown>): Record<string, unknown> {
+  const dangerous = new Set(['__proto__', 'constructor', 'prototype']);
+  const cleaned: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(obj)) {
+    if (!dangerous.has(key)) {
+      cleaned[key] = value;
+    }
+  }
+  return cleaned;
+}
+
+const safeRecord = z.record(z.unknown()).transform(stripDangerousKeys);
+
 // Validation schemas
 const CreateAgentSchema = z.object({
   name: z.string().min(1).max(50),
   strategy: z.string().min(1).max(50),
-  strategyParams: z.record(z.unknown()).optional(),
+  strategyParams: safeRecord.optional(),
   executionSettings: z.object({
     cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
     maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
@@ -85,7 +136,7 @@ const CreateAgentSchema = z.object({
 });
 
 const UpdateAgentConfigSchema = z.object({
-  strategyParams: z.record(z.unknown()).optional(),
+  strategyParams: safeRecord.optional(),
   executionSettings: z.object({
     cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
     maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
@@ -168,7 +219,7 @@ app.get('/api/stats', async (_req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -218,7 +269,7 @@ app.get('/api/agents', async (_req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -284,13 +335,13 @@ app.get('/api/agents/:id', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
 });
 
-app.post('/api/agents', async (req: Request, res: Response) => {
+app.post('/api/agents', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const validation = CreateAgentSchema.safeParse(req.body);
     if (!validation.success) {
@@ -324,13 +375,13 @@ app.post('/api/agents', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
 });
 
-app.post('/api/agents/:id/start', async (req: Request, res: Response) => {
+app.post('/api/agents/:id/start', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const orchestrator = getOrchestrator();
     const result = orchestrator.startAgent(req.params['id'] ?? '');
@@ -351,13 +402,13 @@ app.post('/api/agents/:id/start', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
 });
 
-app.post('/api/agents/:id/stop', async (req: Request, res: Response) => {
+app.post('/api/agents/:id/stop', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const orchestrator = getOrchestrator();
     const result = orchestrator.stopAgent(req.params['id'] ?? '');
@@ -378,13 +429,13 @@ app.post('/api/agents/:id/stop', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
 });
 
-app.patch('/api/agents/:id/config', async (req: Request, res: Response) => {
+app.patch('/api/agents/:id/config', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const validation = UpdateAgentConfigSchema.safeParse(req.body);
     if (!validation.success) {
@@ -419,7 +470,7 @@ app.patch('/api/agents/:id/config', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -442,7 +493,7 @@ app.get('/api/strategies', (_req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -470,7 +521,7 @@ app.get('/api/strategies/:name', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -495,7 +546,7 @@ app.get('/api/transactions', (_req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -520,7 +571,7 @@ app.get('/api/events', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -551,12 +602,12 @@ const RegisterAgentSchema = z.object({
   supportedIntents: z.array(
     z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS'])
   ).min(1),
-  metadata: z.record(z.unknown()).optional(),
+  metadata: safeRecord.optional(),
 });
 
 const SubmitIntentSchema = z.object({
   type: z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS']),
-  params: z.record(z.unknown()).default({}),
+  params: safeRecord.default({}),
 }).refine((data) => {
   // For AUTONOMOUS intents, ensure `action` is present
   if (data.type === 'AUTONOMOUS' && typeof data.params['action'] !== 'string') {
@@ -569,7 +620,7 @@ const SubmitIntentSchema = z.object({
  * Register an external agent and receive a wallet + control token.
  * The control token is returned ONCE; the caller must store it securely.
  */
-app.post('/api/byoa/register', async (req: Request, res: Response) => {
+app.post('/api/byoa/register', requireAdminAuth, async (req: Request, res: Response) => {
   try {
     const validation = RegisterAgentSchema.safeParse(req.body);
     if (!validation.success) {
@@ -642,7 +693,7 @@ app.post('/api/byoa/register', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -699,7 +750,7 @@ app.post('/api/byoa/intents', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -743,7 +794,7 @@ app.get('/api/byoa/agents', async (_req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -805,7 +856,7 @@ app.get('/api/byoa/agents/:id', async (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -828,7 +879,7 @@ app.get('/api/byoa/agents/:id/intents', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -836,9 +887,9 @@ app.get('/api/byoa/agents/:id/intents', (req: Request, res: Response) => {
 
 /**
  * Deactivate an external agent.
- * Admin action — no bearer token required (dashboard use).
+ * Admin action â€” no bearer token required (dashboard use).
  */
-app.post('/api/byoa/agents/:id/deactivate', (req: Request, res: Response) => {
+app.post('/api/byoa/agents/:id/deactivate', requireAdminAuth, (req: Request, res: Response) => {
   try {
     const registry = getAgentRegistry();
     const result = registry.deactivateAgent(req.params['id'] ?? '');
@@ -856,7 +907,7 @@ app.post('/api/byoa/agents/:id/deactivate', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -864,9 +915,9 @@ app.post('/api/byoa/agents/:id/deactivate', (req: Request, res: Response) => {
 
 /**
  * Activate an external agent.
- * Admin action — no bearer token required (dashboard use).
+ * Admin action â€” no bearer token required (dashboard use).
  */
-app.post('/api/byoa/agents/:id/activate', (req: Request, res: Response) => {
+app.post('/api/byoa/agents/:id/activate', requireAdminAuth, (req: Request, res: Response) => {
   try {
     const registry = getAgentRegistry();
     const result = registry.activateAgent(req.params['id'] ?? '');
@@ -884,7 +935,7 @@ app.post('/api/byoa/agents/:id/activate', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -892,9 +943,9 @@ app.post('/api/byoa/agents/:id/activate', (req: Request, res: Response) => {
 
 /**
  * Revoke an external agent (permanent).
- * Admin action — no bearer token required (dashboard use).
+ * Admin action â€” no bearer token required (dashboard use).
  */
-app.post('/api/byoa/agents/:id/revoke', (req: Request, res: Response) => {
+app.post('/api/byoa/agents/:id/revoke', requireAdminAuth, (req: Request, res: Response) => {
   try {
     const registry = getAgentRegistry();
     const result = registry.revokeAgent(req.params['id'] ?? '');
@@ -912,7 +963,7 @@ app.post('/api/byoa/agents/:id/revoke', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -936,14 +987,14 @@ app.get('/api/byoa/intents', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
 });
 
 /**
- * Global intent history endpoint — returns ALL intents (built-in + BYOA).
+ * Global intent history endpoint â€” returns ALL intents (built-in + BYOA).
  * The frontend intent-history page uses this.
  */
 app.get('/api/intents', (req: Request, res: Response) => {
@@ -960,7 +1011,7 @@ app.get('/api/intents', (req: Request, res: Response) => {
   } catch (error) {
     res.status(500).json({
       success: false,
-      error: String(error),
+      error: sanitizeError(error),
       timestamp: new Date(),
     });
   }
@@ -973,7 +1024,19 @@ app.get('/api/intents', (req: Request, res: Response) => {
 let wss: WebSocketServer | null = null;
 
 function setupWebSocket(port: number): void {
-  wss = new WebSocketServer({ port });
+  wss = new WebSocketServer({
+    port,
+    // H-2: Validate origin for WebSocket connections
+    verifyClient: (info: { origin?: string; req: { headers: Record<string, string | string[] | undefined> } }) => {
+      const origin = info.origin ?? info.req.headers['origin'] ?? '';
+      // Allow connections with no origin (e.g. CLI tools, server-to-server)
+      if (!origin) return true;
+      // Allow configured CORS origins
+      if (corsOrigins.some((allowed: string) => origin === allowed)) return true;
+      logger.warn('WebSocket connection rejected — origin not allowed', { origin });
+      return false;
+    },
+  });
 
   wss.on('connection', (ws: WebSocket) => {
     logger.info('WebSocket client connected');
@@ -1001,7 +1064,7 @@ function setupWebSocket(port: number): void {
     });
 
     ws.on('error', (error) => {
-      logger.error('WebSocket error', { error: String(error) });
+      logger.error('WebSocket error', { error: sanitizeError(error) });
     });
   });
 

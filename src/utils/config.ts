@@ -20,6 +20,10 @@ const ConfigSchema = z.object({
   
   // Security
   KEY_ENCRYPTION_SECRET: z.string().min(16).default('dev-secret-change-in-production'),
+  ADMIN_API_KEY: z.string().min(8).default('dev-admin-key-change-in-production'),
+  
+  // CORS
+  CORS_ORIGINS: z.string().default(''),
   
   // Agent
   MAX_AGENTS: z.coerce.number().int().positive().default(20),
@@ -60,14 +64,31 @@ export function getConfig(): Config {
     throw new Error('This system is designed for devnet only. Mainnet is not supported for safety.');
   }
   
-  // Warn if using default encryption secret in production
-  if (
-    result.data.KEY_ENCRYPTION_SECRET === 'dev-secret-change-in-production' &&
-    process.env['NODE_ENV'] === 'production'
-  ) {
-    throw new Error(
-      'CRITICAL: Using default KEY_ENCRYPTION_SECRET in production. ' +
-      'Set a strong, unique KEY_ENCRYPTION_SECRET environment variable.'
+  // Warn if using default encryption secret
+  if (result.data.KEY_ENCRYPTION_SECRET === 'dev-secret-change-in-production') {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error(
+        'CRITICAL: Using default KEY_ENCRYPTION_SECRET in production. ' +
+        'Set a strong, unique KEY_ENCRYPTION_SECRET environment variable.'
+      );
+    }
+    console.warn(
+      '⚠ WARNING: Using default KEY_ENCRYPTION_SECRET. ' +
+      'Set a strong, unique value for any non-local deployment.',
+    );
+  }
+
+  // Warn if using default admin key
+  if (result.data.ADMIN_API_KEY === 'dev-admin-key-change-in-production') {
+    if (process.env['NODE_ENV'] === 'production') {
+      throw new Error(
+        'CRITICAL: Using default ADMIN_API_KEY in production. ' +
+        'Generate a strong key: openssl rand -hex 32',
+      );
+    }
+    console.warn(
+      '⚠ WARNING: Using default ADMIN_API_KEY. ' +
+      'Set a strong, unique value for any non-local deployment.',
     );
   }
   

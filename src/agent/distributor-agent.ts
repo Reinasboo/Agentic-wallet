@@ -114,12 +114,14 @@ export class DistributorAgent extends BaseAgent {
     });
 
     this.transfersToday++;
+    // M-3: Capture current index for reasoning BEFORE incrementing
+    const recipientIndex = this.currentRecipientIndex;
     this.currentRecipientIndex = (this.currentRecipientIndex + 1) % this.params.recipients.length;
 
     return {
       shouldAct: true,
       intent: this.createTransferSolIntent(recipient, this.params.amountPerTransfer),
-      reasoning: `Distributing ${this.params.amountPerTransfer} SOL to recipient ${this.currentRecipientIndex}`,
+      reasoning: `Distributing ${this.params.amountPerTransfer} SOL to recipient ${recipientIndex}`,
     };
   }
 
