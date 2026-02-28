@@ -1,6 +1,13 @@
 # Skills Reference
 
-Machine-readable documentation of wallet capabilities and agent-accessible actions.
+Machine-readable documentation of wallet capabilities, agent actions, API surface, security model, and BYOA integration.
+
+> **Version**: 1.0.0  
+> **Network**: Solana Devnet  
+> **Backend**: Express on port 3001 (API) + WebSocket on port 3002  
+> **Frontend**: Next.js 14 on port 3000 (proxies `/api/*` → backend)
+
+---
 
 ## Wallet Capabilities
 
@@ -8,6 +15,7 @@ Machine-readable documentation of wallet capabilities and agent-accessible actio
 wallet:
   version: "1.0.0"
   network: "devnet"
+  encryption: "AES-256-GCM (KEY_ENCRYPTION_SECRET env var)"
   
   capabilities:
     create_wallet:
@@ -28,7 +36,7 @@ wallet:
         - lamports: "bigint"
     
     get_token_balances:
-      description: "Retrieve SPL token balances"
+      description: "Retrieve SPL token balances (decimal-aware)"
       parameters:
         - name: "walletId"
           type: "string"
@@ -75,7 +83,7 @@ wallet:
         - "Daily limit check"
     
     transfer_token:
-      description: "Transfer SPL tokens"
+      description: "Transfer SPL tokens (decimal-aware amount handling)"
       parameters:
         - name: "from"
           type: "walletId"
@@ -85,7 +93,84 @@ wallet:
           type: "PublicKey"
         - name: "amount"
           type: "number"
+      notes:
+        - "Automatically fetches mint decimals on-chain"
+        - "Converts UI amount to raw token units"
 ```
+
+---
+
+## Security Model
+
+```yaml
+security:
+  version: "1.0.0"
+
+  admin_auth:
+    mechanism: "X-Admin-Key header"
+    env_var: "ADMIN_API_KEY"
+    protected_endpoints:
+      - "POST   /api/agents"
+      - "POST   /api/agents/:id/start"
+      - "POST   /api/agents/:id/stop"
+      - "PATCH  /api/agents/:id/config"
+      - "POST   /api/byoa/register"
+      - "POST   /api/byoa/agents/:id/deactivate"
+      - "POST   /api/byoa/agents/:id/activate"
+    behavior:
+      - "Returns 401 Unauthorized if header missing or invalid"
+      - "Timing-safe comparison to prevent timing attacks"
+
+  byoa_auth:
+    mechanism: "Bearer token (Authorization header)"
+    protected_endpoints:
+      - "POST /api/byoa/intents"
+    behavior:
+      - "Token generated at registration (SHA-256, 64 hex chars)"
+      - "Token validated against registered agent record"
+      - "Agent must be active to execute intents"
+
+  cors:
+    env_var: "CORS_ORIGIN"
+    default: "http://localhost:3000"
+    behavior: "Configurable via environment variable"
+
+  websocket:
+    origin_validation: true
+    env_var: "WS_ALLOWED_ORIGINS"
+    default: "http://localhost:3000,http://localhost:3001"
+
+  rate_limiting:
+    implementation: "In-memory RateLimiter with automatic cleanup"
+    applied_to: "Agent cycle actions, daily limits"
+
+  error_handling:
+    sanitization: true
+    behavior:
+      - "Internal error details stripped from API responses"
+      - "Only safe error messages exposed to clients"
+      - "Full details logged server-side"
+
+  input_validation:
+    library: "zod"
+    behavior:
+      - "All request bodies validated via Zod schemas"
+      - "Prototype pollution prevention on JSON payloads"
+      - "Strategy params validated by strategy registry"
+
+  encryption:
+    algorithm: "AES-256-GCM"
+    key_source: "KEY_ENCRYPTION_SECRET environment variable"
+    scope: "Wallet private keys at rest"
+
+  autonomous_intents:
+    guardrails:
+      - "Fully logged to intent history for auditability"
+      - "Raw transaction inspection before signing"
+      - "Operator assumes full responsibility"
+```
+
+---
 
 ## Agent Actions
 
@@ -154,9 +239,11 @@ agent:
       policy_checks: []  # No policy validation — autonomous
       notes:
         - "Fully logged to intent history for auditability"
-        - "Wallet-manager returns immediate success (no balance/limit checks)"
+        - "Raw transaction inspection before signing"
         - "Designed for advanced operators who accept full responsibility"
 ```
+
+---
 
 ## dApp / Protocol Interaction Skills
 
@@ -178,10 +265,11 @@ protocol_interactions:
         description: "Destination wallet address"
       - name: "amount"
         type: "number"
-        description: "Token amount (UI units)"
+        description: "Token amount (UI units, auto-converted with on-chain decimal lookup)"
     flow:
       - "Agent creates transfer_token intent"
       - "Orchestrator validates via policy engine"
+      - "TransactionBuilder fetches mint decimals on-chain"
       - "TransactionBuilder.buildTokenTransfer() constructs instruction"
       - "Memo instruction appended for on-chain audit"
       - "Wallet layer signs; RPC layer submits"
@@ -203,22 +291,80 @@ protocol_interactions:
       - "buildMemoTransaction(payer, memo) in transaction-builder.ts"
 ```
 
-## BYOA Supported Intent Types
+---
+
+## BYOA (Bring Your Own Agent) System
 
 ```yaml
-byoa_intents:
-  - REQUEST_AIRDROP
-  - TRANSFER_SOL
-  - TRANSFER_TOKEN
-  - QUERY_BALANCE
-  - AUTONOMOUS
+byoa:
+  version: "1.0.0"
+  description: "External agents connect via REST API with bearer-token authentication"
+
+  supported_intents:
+    - REQUEST_AIRDROP
+    - TRANSFER_SOL
+    - TRANSFER_TOKEN
+    - QUERY_BALANCE
+    - AUTONOMOUS
+
+  lifecycle:
+    register:
+      endpoint: "POST /api/byoa/register"
+      auth: "X-Admin-Key"
+      body:
+        name: "string (required)"
+        type: "'local' | 'remote'"
+        description: "string?"
+        supportedIntents: "SupportedIntentType[]?"
+      returns:
+        agentId: "string (UUID)"
+        token: "string (64-char hex, shown once)"
+        walletPublicKey: "string (base58)"
+    
+    submit_intent:
+      endpoint: "POST /api/byoa/intents"
+      auth: "Bearer <token>"
+      body:
+        agentId: "string (required)"
+        type: "SupportedIntentType (required)"
+        params: "object? (action-specific)"
+      returns:
+        intentId: "string"
+        status: "'executed' | 'rejected'"
+        result: "object?"
+        error: "string?"
+    
+    deactivate:
+      endpoint: "POST /api/byoa/agents/:id/deactivate"
+      auth: "X-Admin-Key"
+    
+    activate:
+      endpoint: "POST /api/byoa/agents/:id/activate"
+      auth: "X-Admin-Key"
+    
+    list:
+      endpoint: "GET /api/byoa/agents"
+      auth: "none"
+    
+    detail:
+      endpoint: "GET /api/byoa/agents/:id"
+      auth: "none"
+    
+    intent_history:
+      endpoint: "GET /api/byoa/agents/:id/intents"
+      auth: "none"
+      query:
+        limit: "number? (default 50)"
 ```
+
+---
 
 ## Agent Strategies
 
 ```yaml
 strategies:
   accumulator:
+    category: "income"
     description: "Maintains target balance through airdrops"
     parameters:
       targetBalance:
@@ -242,6 +388,7 @@ strategies:
       - "Respect daily airdrop limit"
   
   distributor:
+    category: "distribution"
     description: "Distributes SOL to recipients"
     parameters:
       recipients:
@@ -269,6 +416,7 @@ strategies:
       - "Cycle through recipients"
 
   balance_guard:
+    category: "utility"
     description: "Emergency-only airdrop when balance is critically low"
     parameters:
       criticalBalance:
@@ -289,6 +437,7 @@ strategies:
       - "Otherwise remain idle"
 
   scheduled_payer:
+    category: "distribution"
     description: "Recurring single-recipient SOL payments"
     parameters:
       recipient:
@@ -310,6 +459,8 @@ strategies:
       - "Transfer amount to recipient"
       - "Respect daily payment limit"
 ```
+
+---
 
 ## Policy Constraints
 
@@ -339,25 +490,41 @@ policy:
       description: "Optional blacklist of blocked recipients"
 ```
 
-## API Schema
+---
+
+## API Schema (22 Endpoints)
 
 ```yaml
 api:
   base_url: "http://localhost:3001"
   websocket: "ws://localhost:3002"
-  
+  frontend_proxy: "http://localhost:3000 → backend via Next.js rewrites"
+
+  # ── Core ──────────────────────────────────────
   endpoints:
+    root:
+      method: "GET"
+      path: "/"
+      auth: "none"
+      response:
+        name: "string"
+        version: "string"
+        status: "string"
+        endpoints: "string[]"
+
     health:
       method: "GET"
       path: "/api/health"
+      auth: "none"
       response:
         success: "boolean"
         data:
-          status: "string"
+          status: "'healthy'"
     
     stats:
       method: "GET"
       path: "/api/stats"
+      auth: "none"
       response:
         totalAgents: "number"
         activeAgents: "number"
@@ -366,15 +533,18 @@ api:
         networkStatus: "string"
         network: "string"
         uptime: "number"
-    
+
+  # ── Agent Management (admin-protected) ────────
     list_agents:
       method: "GET"
       path: "/api/agents"
+      auth: "none"
       response: "Agent[]"
     
     get_agent:
       method: "GET"
       path: "/api/agents/:id"
+      auth: "none"
       response:
         agent: "Agent"
         balance: "number"
@@ -385,19 +555,21 @@ api:
     create_agent:
       method: "POST"
       path: "/api/agents"
+      auth: "X-Admin-Key"
       body:
         name: "string"
         strategy: "string"  # any registered strategy name
         strategyParams: "object?"  # validated by strategy registry
         executionSettings:
-          cycleIntervalMs: "number?"  # default 30000
-          maxActionsPerDay: "number?"  # default 100
+          cycleIntervalMs: "number?"  # default 30000, min 5000, max 3600000
+          maxActionsPerDay: "number?"  # default 100, min 1, max 10000
           enabled: "boolean?"          # default true
       response: "Agent"
     
     update_agent_config:
       method: "PATCH"
       path: "/api/agents/:id/config"
+      auth: "X-Admin-Key"
       body:
         strategyParams: "object?"
         executionSettings:
@@ -409,75 +581,205 @@ api:
     start_agent:
       method: "POST"
       path: "/api/agents/:id/start"
+      auth: "X-Admin-Key"
     
     stop_agent:
       method: "POST"
       path: "/api/agents/:id/stop"
-    
+      auth: "X-Admin-Key"
+
+  # ── Observability ─────────────────────────────
     list_transactions:
       method: "GET"
       path: "/api/transactions"
+      auth: "none"
       response: "Transaction[]"
     
     list_events:
       method: "GET"
       path: "/api/events"
+      auth: "none"
       query:
-        count: "number?"
+        count: "number? (default 50)"
       response: "SystemEvent[]"
     
     global_intent_history:
       method: "GET"
       path: "/api/intents"
-      description: "Returns combined intent history from built-in agents and BYOA agents"
+      auth: "none"
+      query:
+        limit: "number? (default 50)"
+      description: "Combined intent history from built-in + BYOA agents"
       response: "IntentHistoryRecord[]"
-    
+
+    explorer_url:
+      method: "GET"
+      path: "/api/explorer/:signature"
+      auth: "none"
+      response:
+        url: "string (Solana Explorer URL with cluster=devnet)"
+
+  # ── Strategies ────────────────────────────────
     list_strategies:
       method: "GET"
       path: "/api/strategies"
+      auth: "none"
       response: "StrategyDefinitionDTO[]"
     
     get_strategy:
       method: "GET"
       path: "/api/strategies/:name"
+      auth: "none"
       response: "StrategyDefinitionDTO"
+
+  # ── BYOA (Bring Your Own Agent) ──────────────
+    byoa_register:
+      method: "POST"
+      path: "/api/byoa/register"
+      auth: "X-Admin-Key"
+      body:
+        name: "string"
+        type: "'local' | 'remote'"
+        description: "string?"
+        supportedIntents: "SupportedIntentType[]?"
+      response:
+        agentId: "string"
+        token: "string (64-char hex, shown once)"
+        walletPublicKey: "string"
+
+    byoa_submit_intent:
+      method: "POST"
+      path: "/api/byoa/intents"
+      auth: "Bearer <token>"
+      body:
+        agentId: "string"
+        type: "SupportedIntentType"
+        params: "object?"
+      response:
+        intentId: "string"
+        status: "'executed' | 'rejected'"
+        result: "object?"
+
+    byoa_list_agents:
+      method: "GET"
+      path: "/api/byoa/agents"
+      auth: "none"
+      response: "ExternalAgent[]"
+
+    byoa_get_agent:
+      method: "GET"
+      path: "/api/byoa/agents/:id"
+      auth: "none"
+      response: "ExternalAgentDetail"
+
+    byoa_agent_intents:
+      method: "GET"
+      path: "/api/byoa/agents/:id/intents"
+      auth: "none"
+      query:
+        limit: "number? (default 50)"
+      response: "IntentHistoryRecord[]"
+
+    byoa_deactivate:
+      method: "POST"
+      path: "/api/byoa/agents/:id/deactivate"
+      auth: "X-Admin-Key"
+
+    byoa_activate:
+      method: "POST"
+      path: "/api/byoa/agents/:id/activate"
+      auth: "X-Admin-Key"
 ```
 
-## Event Types
+---
+
+## WebSocket Events
 
 ```yaml
-events:
-  agent_created:
-    fields:
-      agent: "AgentInfo"
-  
-  agent_status_changed:
-    fields:
-      agentId: "string"
-      previousStatus: "AgentStatus"
-      newStatus: "AgentStatus"
-  
-  agent_action:
-    fields:
-      agentId: "string"
-      action: "string"
-      details: "object?"
-  
-  transaction:
-    fields:
-      transaction: "TransactionRecord"
-  
-  balance_changed:
-    fields:
-      walletId: "string"
-      previousBalance: "number"
-      newBalance: "number"
-  
-  system_error:
-    fields:
-      error: "string"
-      context: "object?"
+websocket:
+  url: "ws://localhost:3002"
+  origin_validation: true
+
+  on_connect:
+    message_type: "initial_state"
+    payload:
+      agents: "Agent[]"
+      stats: "SystemStats"
+
+  broadcast_events:
+    agent_created:
+      fields:
+        agent: "AgentInfo"
+    
+    agent_status_changed:
+      fields:
+        agentId: "string"
+        previousStatus: "AgentStatus"
+        newStatus: "AgentStatus"
+    
+    agent_action:
+      fields:
+        agentId: "string"
+        action: "string"
+        details: "object?"
+    
+    transaction:
+      fields:
+        transaction: "TransactionRecord"
+    
+    balance_changed:
+      fields:
+        walletId: "string"
+        previousBalance: "number"
+        newBalance: "number"
+    
+    system_error:
+      fields:
+        error: "string"
+        context: "object?"
 ```
+
+---
+
+## Frontend Pages
+
+```yaml
+frontend:
+  framework: "Next.js 14 (Pages Router)"
+  port: 3000
+  proxy: "/api/* → http://localhost:3001/api/*"
+
+  pages:
+    dashboard:
+      path: "/"
+      description: "System overview with stats, agent list, activity feed"
+    agents_list:
+      path: "/agents"
+      description: "All built-in agents with status and controls"
+    agent_detail:
+      path: "/agents/:id"
+      description: "Agent detail with balance, transactions, events, config"
+    transactions:
+      path: "/transactions"
+      description: "Global transaction log"
+    connected_agents:
+      path: "/connected-agents"
+      description: "BYOA agent list"
+    connected_agent_detail:
+      path: "/connected-agents/:id"
+      description: "BYOA agent detail with intent history"
+    strategies:
+      path: "/strategies"
+      description: "Available strategies with field definitions"
+    intent_history:
+      path: "/intent-history"
+      description: "Global intent history (built-in + BYOA)"
+    byoa_register:
+      path: "/byoa-register"
+      description: "BYOA agent registration form"
+```
+
+---
 
 ## Type Definitions
 
@@ -506,4 +808,49 @@ type TransactionType =
   | 'transfer_sol'
   | 'transfer_spl'
   | 'create_token_account';
+
+type SupportedIntentType =
+  | 'REQUEST_AIRDROP'
+  | 'TRANSFER_SOL'
+  | 'TRANSFER_TOKEN'
+  | 'QUERY_BALANCE'
+  | 'AUTONOMOUS';
+
+type ExternalAgentStatus =
+  | 'registered'
+  | 'active'
+  | 'inactive'
+  | 'revoked';
+```
+
+---
+
+## Environment Variables
+
+```yaml
+env:
+  SOLANA_RPC_URL:
+    default: "https://api.devnet.solana.com"
+    description: "Solana RPC endpoint"
+  KEY_ENCRYPTION_SECRET:
+    required: true
+    description: "AES-256-GCM key for wallet encryption"
+  ADMIN_API_KEY:
+    required: true
+    description: "Admin authentication key for protected endpoints"
+  CORS_ORIGIN:
+    default: "http://localhost:3000"
+    description: "Allowed CORS origin"
+  WS_ALLOWED_ORIGINS:
+    default: "http://localhost:3000,http://localhost:3001"
+    description: "Comma-separated allowed WebSocket origins"
+  PORT:
+    default: 3001
+    description: "API server port"
+  WS_PORT:
+    default: 3002
+    description: "WebSocket server port"
+  NEXT_PUBLIC_API_URL:
+    default: "http://localhost:3001"
+    description: "Frontend API base URL (optional, uses proxy by default)"
 ```
