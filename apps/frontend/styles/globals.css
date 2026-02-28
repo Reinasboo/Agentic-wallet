@@ -104,6 +104,22 @@
     @apply bg-status-warning animate-pulse-subtle;
   }
 
+  .status-dot-active {
+    @apply bg-status-success animate-pulse-subtle;
+  }
+
+  .status-dot-thinking {
+    @apply bg-status-info animate-pulse-subtle;
+  }
+
+  .status-dot-waiting {
+    @apply bg-status-warning;
+  }
+
+  .status-dot-stopped {
+    @apply bg-status-idle;
+  }
+
   /* Status badge - Pill with text */
   .badge {
     @apply inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md;
@@ -227,7 +243,7 @@
   }
 
   .icon-container-sm {
-    @apply w-8 h-8 rounded-md;
+    @apply w-8 h-8 rounded-md flex items-center justify-center;
   }
 
   .icon-container-primary {

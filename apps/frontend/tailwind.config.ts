@@ -33,6 +33,7 @@ const config: Config = {
           DEFAULT: '#FFFFFF',     // Pure surface (only exception)
           muted: '#F8F7F4',       // Muted card
           elevated: '#FEFEFE',    // Elevated state
+          hover: '#F3F1ED',       // Hover state
         },
         // Primary accent - muted amber/terracotta
         primary: {
@@ -122,6 +123,7 @@ const config: Config = {
         // Headings
         'heading': ['1.5rem', { lineHeight: '1.35', letterSpacing: '-0.015em', fontWeight: '600' }],
         'heading-sm': ['1.25rem', { lineHeight: '1.4', letterSpacing: '-0.01em', fontWeight: '600' }],
+        'heading-md': ['1.375rem', { lineHeight: '1.35', letterSpacing: '-0.012em', fontWeight: '600' }],
         // Body text
         'body-lg': ['1.0625rem', { lineHeight: '1.65' }],
         'body': ['0.9375rem', { lineHeight: '1.6' }],

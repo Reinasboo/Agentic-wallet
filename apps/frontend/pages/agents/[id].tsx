@@ -156,7 +156,7 @@ export default function AgentDetailPage() {
 
                 <div className="flex items-center gap-3">
                   <span className={cn('badge', getStatusBadgeClass(agent.status))}>
-                    <span className={cn('status-dot', `status-dot-${agent.status === 'executing' ? 'active' : agent.status}`)} />
+                    <span className={cn('status-dot', `status-dot-${agent.status}`)} />
                     {agent.status}
                   </span>
 
