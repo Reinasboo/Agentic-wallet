@@ -5,7 +5,7 @@
   "description": "Autonomous AI Agent Wallet System for Solana Devnet",
   "scripts": {
     "dev": "concurrently \"npm run dev:backend\" \"npm run dev:frontend\"",
-    "dev:backend": "tsx watch src/index.ts",
+    "dev:backend": "node --disable-warning=DEP0040 --require tsx/cjs --require ./src/preload.ts --import tsx src/index.ts",
     "dev:frontend": "cd apps/frontend && npm run dev",
     "build": "tsc && cd apps/frontend && npm run build",
     "start": "node dist/index.js",
