@@ -42,8 +42,10 @@ export function formatTimestamp(timestamp: string | Date): string {
 }
 
 // Format relative time
-export function formatRelativeTime(timestamp: string | Date): string {
+export function formatRelativeTime(timestamp: string | Date | undefined | null): string {
+  if (!timestamp) return '';
   const date = new Date(timestamp);
+  if (isNaN(date.getTime())) return '';
   const now = new Date();
   const diffMs = now.getTime() - date.getTime();
   const diffSec = Math.floor(diffMs / 1000);

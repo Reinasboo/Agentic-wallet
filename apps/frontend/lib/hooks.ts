@@ -202,7 +202,9 @@ export function useTransactions(pollInterval: number = 5000) {
   const fetchTransactions = useCallback(async () => {
     const response = await api.getTransactions();
     if (response.success && response.data) {
-      setTransactions(response.data);
+      // Backend wraps as { transactions: [...], total, page, limit }
+      const txData = (response.data as any)?.transactions ?? response.data;
+      setTransactions(Array.isArray(txData) ? txData : []);
       setError(null);
     } else {
       setError(response.error || 'Failed to fetch transactions');
