@@ -285,6 +285,7 @@ Keys are encrypted using:
 - **Key Derivation**: scrypt (N=32768, r=8, p=1) — OWASP recommended minimum
 - **Salt**: 32 bytes random per key
 - **IV**: 16 bytes random per encryption
+- **At-Rest Location**: `data/wallets.json` (gitignored, never committed)
 
 ```typescript
 // Encryption format: salt:iv:authTag:ciphertext (base64)
@@ -320,6 +321,30 @@ logger.info('Transaction signed', {
 - Policy validation (pass/fail)
 - Agent status changes
 - API requests
+
+## Persistence Security
+
+All system state is persisted to the `data/` directory as JSON files.
+
+**Files and sensitivity**:
+
+| File | Sensitivity | Contents |
+|------|------------|----------|
+| `data/wallets.json` | **HIGH** | AES-256-GCM encrypted private keys, policies |
+| `data/agents.json` | Medium | Agent configs, strategy params, `wasRunning` flag |
+| `data/byoa-agents.json` | **HIGH** | SHA-256 token hashes, wallet bindings |
+| `data/byoa-binder.json` | Low | Wallet-to-agent ID mapping |
+
+**Mitigations**:
+- `data/` is listed in `.gitignore` — never committed to version control
+- Private keys are **always** AES-256-GCM encrypted (never plaintext on disk)
+- Control tokens are stored **hashed** (SHA-256) — raw tokens are never persisted
+- Persistence functions log errors but never throw (fail-safe)
+- Files are written synchronously to avoid partial writes during crash
+
+**Backup guidance**: If you back up `data/`, treat the backup with the same
+confidentiality as the encryption secret. Store it in an encrypted volume
+or vault.
 
 ## Network Security (Devnet)
 
@@ -388,6 +413,9 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [x] Startup warnings for default encryption secret / admin key
 - [x] **Graceful shutdown** (HTTP drain 10s timeout, WebSocket 1001 close)
 - [x] **scrypt cost N=32768** (OWASP recommended)
+- [x] **File-based persistence** (wallets, agents, BYOA records survive restarts)
+- [x] **Persistence directory gitignored** (`data/` — encrypted keys never committed)
+- [x] **Auto-restart agents** on startup (agents with `wasRunning: true` resume automatically)
 
 ### Recommended for Production
 - [ ] HSM integration
@@ -399,7 +427,8 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [ ] Security monitoring
 - [ ] Penetration testing
 - [ ] Formal audit
-- [ ] Persistent state (database) instead of in-memory
+- [x] Persistent state — file-based JSON persistence (`data/`) implemented
+- [ ] Migrate to encrypted database (SQLite+SQLCipher or PostgreSQL) for production
 - [ ] Cryptographic randomness for agent behavior (replace Math.random)
 - [ ] Recipient address validation at agent construction time
 - [ ] Auto-generated frontend types from backend schemas

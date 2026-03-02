@@ -88,11 +88,15 @@ interface InternalWallet {
 
 **Key Management**:
 ```
-Generate → Encrypt → Store → (signing request) → Decrypt → Sign → Discard
+Generate → Encrypt → Store (memory + disk) → (signing request) → Decrypt → Sign → Discard
                                                             ↓
                                                     Key in memory
                                                     for <10ms
 ```
+
+Wallets and policies are persisted to `data/wallets.json` on every mutation
+(create, delete, update-policy) and restored from disk when the
+`WalletManager` singleton is first constructed.
 
 ### 3. RPC Layer (`/src/rpc`)
 
@@ -182,6 +186,14 @@ Orchestrator
 Each agent has independent **Execution Settings** (cycle interval, max actions
 per day, enabled/disabled) that can be updated at runtime via
 `PATCH /api/agents/:id/config`.
+
+**Persistence**:
+
+Agent state is persisted to `data/agents.json` after every mutation
+(create, start, stop, config update). Each record captures a `wasRunning`
+flag indicating whether the agent was active at shutdown. On startup,
+`restoreFromStore()` recreates agents with their original IDs and timestamps,
+then auto-starts those that were previously running.
 
 **Intent History Recording**:
 
@@ -279,6 +291,7 @@ External Agent                              Platform
 - Control tokens are stored as SHA-256 hashes
 - 1 agent = 1 wallet (enforced at the binder level)
 - Intent history is centralized — the IntentRouter's `recordIntent()` method accepts records from both BYOA submissions and Orchestrator-forwarded built-in agent activity
+- Agent records and wallet bindings are persisted to `data/byoa-agents.json` and `data/byoa-binder.json`; restored on startup
 
 ## Strategy Registry (`/src/agent/strategy-registry.ts`)
 
@@ -370,6 +383,36 @@ fully logged to the intent history for auditability.
 3. Recipient validation
 4. Rate limiting
 
+## Persistence Layer (`/src/utils/store.ts`)
+
+The Persistence Layer provides zero-dependency, file-based JSON persistence so
+that all critical system state survives server restarts.
+
+```typescript
+saveState<T>(key: string, data: T): void   // writes data/<key>.json
+loadState<T>(key: string): T | null        // reads + parses, null on missing/corrupt
+```
+
+**Key Properties**:
+- Synchronous reads/writes (startup is blocking, mutations are rare)
+- Errors are logged but never thrown (fail-open for reads, fail-safe for writes)
+- `data/` directory is auto-created and gitignored
+
+**Persisted Files**:
+
+| File | Layer | Written after |
+|------|-------|---------------|
+| `data/wallets.json` | WalletManager | create/delete wallet, update policy |
+| `data/agents.json` | Orchestrator | create/start/stop agent, update config |
+| `data/byoa-agents.json` | AgentRegistry | register, bind, activate/deactivate/revoke, rotate token |
+| `data/byoa-binder.json` | WalletBinder | bind new wallet |
+
+**Startup Restore Order**:
+1. `WalletManager` constructor → loads wallets + policies
+2. `AgentRegistry` constructor → loads BYOA records, rebuilds `tokenIndex`
+3. `WalletBinder` constructor → loads wallet→agent map
+4. `main()` calls `getOrchestrator().restoreFromStore()` → recreates agents, auto-starts those with `wasRunning: true`
+
 ## Fee Constants
 
 Pre-decision balance checks use centralized constants from `src/utils/config.ts`
@@ -451,15 +494,17 @@ const ConfigSchema = z.object({
 ## Scaling Considerations
 
 **Current Design**:
-- Single-process, in-memory state
+- Single-process, file-based persistence (`data/*.json`)
 - Suitable for development and small deployments
+- All state survives restarts (wallets, agents, BYOA registrations)
 
 **Production Path**:
-1. Add persistent storage (encrypted key vault)
-2. Implement agent state persistence
-3. Add horizontal scaling with message queues
-4. Implement distributed locking
-5. Add monitoring and alerting
+1. ~~Add persistent storage~~ ✔ (file-based JSON persistence implemented)
+2. ~~Implement agent state persistence~~ ✔ (agents restore with original IDs, auto-start)
+3. Migrate to encrypted database (e.g., SQLite + SQLCipher or PostgreSQL) for concurrent access
+4. Add horizontal scaling with message queues
+5. Implement distributed locking
+6. Add monitoring and alerting
 
 ## Error Handling
 

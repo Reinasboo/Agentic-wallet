@@ -14,6 +14,7 @@ A production-grade autonomous AI agent wallet system for Solana Devnet. This sys
 - **API Rate Limiting**: Per-IP sliding window (120 req/min) on all endpoints
 - **Pagination**: `/api/transactions` supports `page` and `limit` query params
 - **Graceful Shutdown**: HTTP drain with 10-second timeout, clean WebSocket close
+- **File-Based Persistence**: Agents, wallets, policies, and BYOA registrations survive server restarts — zero extra dependencies
 - **Secure Wallet Management**: AES-256-GCM encrypted key storage, scrypt KDF (N=32768), zero key after sign
 - **Multi-Agent Support**: Run multiple independent agents simultaneously
 - **Policy Engine**: Configurable constraints on agent actions
@@ -130,8 +131,9 @@ This will start:
   /rpc                   # Solana RPC interactions
   /orchestrator          # Agent lifecycle management
   /integration           # BYOA integration layer
-  /utils                 # Shared utilities and types
+  /utils                 # Shared utilities, types, and persistence store
 
+/data                    # Auto-created persistence directory (gitignored)
 /docs                    # Documentation
 README.md
 ARCHITECTURE.md          # Detailed system architecture
@@ -315,6 +317,22 @@ action-specific parameters. All autonomous executions are fully logged.
 - Agents can only act on **their own** bound wallet
 - Control tokens are **hashed** at rest (SHA-256)
 - Lost token? An admin can **rotate** the token via `POST /api/byoa/agents/:id/rotate-token` — the agent reconnects to the **same wallet** with a new token, no funds lost
+
+## Persistence
+
+All system state is persisted to JSON files in the `data/` directory (auto-created,
+gitignored). On restart the server restores wallets, agents, policies, and BYOA
+registrations automatically — agents that were running are restarted.
+
+| File | Contents |
+|------|----------|
+| `data/wallets.json` | Encrypted wallet keys and policies |
+| `data/agents.json` | Agent configs, strategy params, `wasRunning` flag |
+| `data/byoa-agents.json` | External agent records and token hashes |
+| `data/byoa-binder.json` | Wallet-to-agent binding map |
+
+> **Security note**: `data/` is listed in `.gitignore`. Never commit it — it contains
+> AES-256-GCM encrypted private keys. Back it up securely if needed.
 
 ## Security
 
