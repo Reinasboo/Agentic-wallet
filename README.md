@@ -9,7 +9,12 @@ A production-grade autonomous AI agent wallet system for Solana Devnet. This sys
 - **Autonomous Agents**: Self-operating agents with rule-based decision making
 - **Strategy Registry**: Extensible, Zod-validated strategy system with 4 built-in strategies
 - **Dynamic Configuration**: Update agent strategy params and execution settings at runtime
-- **Secure Wallet Management**: AES-256-GCM encrypted key storage
+- **Transaction Simulation**: Pre-flight simulation before every send to catch errors without paying fees
+- **Autonomous Safety**: Program allowlist for `execute_instructions` (12 vetted DeFi programs)
+- **API Rate Limiting**: Per-IP sliding window (120 req/min) on all endpoints
+- **Pagination**: `/api/transactions` supports `page` and `limit` query params
+- **Graceful Shutdown**: HTTP drain with 10-second timeout, clean WebSocket close
+- **Secure Wallet Management**: AES-256-GCM encrypted key storage, scrypt KDF (N=32768), zero key after sign
 - **Multi-Agent Support**: Run multiple independent agents simultaneously
 - **Policy Engine**: Configurable constraints on agent actions
 - **Bring Your Own Agent (BYOA)**: Register external AI agents and give them intent-based wallet access
@@ -156,7 +161,7 @@ DEEP_DIVE.md             # Design philosophy and rationale
 - `GET /api/strategies/:name` - Get a single strategy definition
 
 ### Transactions
-- `GET /api/transactions` - List all transactions
+- `GET /api/transactions` - List transactions (supports `?page=1&limit=20`)
 
 ### Intent History
 - `GET /api/intents` - Global intent history (built-in + BYOA combined)
@@ -292,6 +297,10 @@ curl -X POST http://localhost:3001/api/byoa/intents \
 | `QUERY_BALANCE` | Check wallet balance | (none) | N/A |
 | `AUTONOMOUS` | Unrestricted action | `action`, `params` | **No** |
 
+The `AUTONOMOUS` intent type's `execute_instructions` action is restricted to a
+**program allowlist** of 12 known DeFi and system programs (System, Token, Jupiter,
+Raydium, Orca, Pump.fun, PumpSwap, Bonk.fun, etc.) to prevent abuse.
+
 The `AUTONOMOUS` intent allows agents to execute any action without policy
 constraints. The `action` field specifies the underlying operation (`airdrop`,
 `transfer_sol`, `transfer_token`, `query_balance`) and `params` carries the
@@ -323,7 +332,8 @@ SOLANA_RPC_URL=https://api.devnet.solana.com
 SOLANA_NETWORK=devnet
 PORT=3001
 WS_PORT=3002
-KEY_ENCRYPTION_SECRET=your-secret-here
+KEY_ENCRYPTION_SECRET=your-secret-here   # min 16 chars, use 32+ random hex in prod
+ADMIN_API_KEY=your-admin-key              # required for agent creation/mutation
 MAX_AGENTS=10
 AGENT_LOOP_INTERVAL_MS=5000
 ```

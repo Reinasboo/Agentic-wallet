@@ -37,14 +37,15 @@ This document describes the security architecture, threat model, and defensive m
 - Keys encrypted at rest with AES-256-GCM
 - Keys decrypted only momentarily for signing (<10ms)
 - No key persistence in plaintext
-- Secure key derivation with scrypt
-- Memory cleared after signing
+- Secure key derivation with scrypt (N=32768 — OWASP recommended)
+- **Memory zeroed**: `secretKey.fill(0)` immediately after signing
 
 ```typescript
-// Key is only decrypted for signing, then discarded
+// Key is decrypted, used for signing, then zeroed
 const secretKey = decrypt(wallet.encryptedSecretKey, secret);
 const keypair = Keypair.fromSecretKey(secretKey);
 transaction.sign(keypair);
+secretKey.fill(0); // zero before GC — defense in depth
 // secretKey falls out of scope, eligible for GC
 ```
 
@@ -111,9 +112,27 @@ return { type: 'autonomous', action: 'transfer_sol', params: { amount: 0.5, reci
 
 **Mitigations**:
 - Agent count limits
-- Rate limiting on API endpoints
+- **Per-IP API rate limiting** (120 req/min sliding window with auto-cleanup)
+- **Per-agent BYOA rate limiting** (30 intents/min sliding window)
 - Transaction retry limits
 - Daily transfer limits per wallet
+
+#### 6. Arbitrary Program Execution
+**Threat**: Autonomous agent calls a malicious Solana program via `execute_instructions`
+
+**Mitigations**:
+- `AUTONOMOUS execute_instructions` enforces a **program allowlist** of 12 vetted programs
+- Disallowed program IDs are rejected before signing (no transaction built)
+- Allowlist includes: System Program, Token Program, ATA Program, Memo, Jupiter v6, Raydium AMM/CLMM, Orca Whirlpool, Pump.fun, PumpSwap, Bonk.fun
+- Unknown programs are logged and blocked with an actionable error message
+
+#### 7. Pre-Execution Error Cost
+**Threat**: Agents burn SOL fees on transactions that would fail on-chain
+
+**Mitigations**:
+- **Transaction simulation** runs on all 10 execution paths before `sendTransaction()`
+- Simulation failures abort the operation and record the error — no fee burned
+- Covers: orchestrator SOL/token transfers, all 8 intentRouter paths (BYOA SOL, token, autonomous, raw, swap, create_token, arbitrary instructions)
 
 ## Security Boundaries
 
@@ -237,7 +256,7 @@ Intent → Policy Check → Balance Check → Rate Limit Check → Execute/Rejec
 
 Keys are encrypted using:
 - **Algorithm**: AES-256-GCM (authenticated encryption)
-- **Key Derivation**: scrypt (N=16384, r=8, p=1)
+- **Key Derivation**: scrypt (N=32768, r=8, p=1) — OWASP recommended minimum
 - **Salt**: 32 bytes random per key
 - **IV**: 16 bytes random per encryption
 
@@ -299,11 +318,14 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 ### Implemented ✓
 - [x] Encrypted key storage
 - [x] Agent isolation from keys
+- [x] Memory zeroing of secret key after signing (`secretKey.fill(0)`)
+- [x] Recipient address validation (PublicKey constructor before creating intents)
 - [x] Policy-based validation
 - [x] Read-only frontend (no key exposure)
 - [x] Input validation (Zod) for all API endpoints
-- [x] Secure logging (exact-match redaction of sensitive fields)
+- [x] Secure logging (exact-match redaction of sensitive fields, RPC URL redacted)
 - [x] Rate limiting (daily transfers)
+- [x] **Per-IP API rate limiting** (120 req/min sliding window)
 - [x] Balance minimums
 - [x] BYOA control token hashing (SHA-256)
 - [x] BYOA timing-safe token comparison (`crypto.timingSafeEqual`)
@@ -311,10 +333,13 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [x] BYOA intent validation against supported set
 - [x] BYOA 1-wallet-per-agent isolation
 - [x] BYOA agent revocation
+- [x] **Program allowlist for `execute_instructions`** (12 vetted DeFi/system programs)
+- [x] **Transaction simulation on all execution paths** (10 paths — errors abort before fee is burned)
 - [x] Strategy Registry param validation (Zod schemas per strategy)
 - [x] Execution settings bounds (cycle 5 s–1 h, actions 1–10 000)
 - [x] SPL token transfer (`transfer_token`) validated by the same policy engine as `transfer_sol`
 - [x] SPL token transfers require wallet-layer signing (agents never access keys)
+- [x] **On-chain token decimal lookup** (`getMintDecimals()` — no hardcoded 9)
 - [x] AUTONOMOUS intent type: policy bypass is intentional, documented, and fully logged
 - [x] Global intent history (`/api/intents`) provides unified audit trail for all intent types
 - [x] Orchestrator records built-in agent intents to IntentRouter for centralized logging
@@ -334,6 +359,8 @@ if (config.SOLANA_NETWORK === 'mainnet-beta') {
 - [x] EventBus subscriber limit (max 100)
 - [x] EventBus amortized O(1) history trimming
 - [x] Startup warnings for default encryption secret / admin key
+- [x] **Graceful shutdown** (HTTP drain 10s timeout, WebSocket 1001 close)
+- [x] **scrypt cost N=32768** (OWASP recommended)
 
 ### Recommended for Production
 - [ ] HSM integration

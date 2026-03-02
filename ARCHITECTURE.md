@@ -34,11 +34,14 @@ interface AgentDecision {
 ```
 
 **Key Properties**:
+- Agents **only** know their `cycleCount` (total cycles) and `actionCount` (cycles where they acted)
+- `recordAction(acted: boolean)` updates both counters each cycle
 - No cryptographic capabilities
 - No direct network access
 - Cannot construct transactions
 - Receives sanitized, read-only context
 - Strategy parameters validated by the Strategy Registry (Zod schemas)
+- Recipient addresses validated with `PublicKey` constructor before creating intents
 
 **Built-in Strategy Implementations**:
 
@@ -98,9 +101,11 @@ Generate → Encrypt → Store → (signing request) → Decrypt → Sign → Di
 The RPC Layer handles all communication with Solana:
 - Connection management
 - Transaction building (unsigned)
+- **Transaction simulation** before every send (pre-flight error detection, no fee burned)
 - Transaction submission
-- Retry logic with exponential backoff
-- Confirmation tracking
+- Retry logic with **exponential backoff** (1s → 2s → 4s → 8s → 16s cap)
+- Confirmation tracking with `lastValidBlockHeight`
+- **On-chain token decimal lookup** via `getMintDecimals()` (no hardcoded 9)
 - **Memo Program integration**: All SOL and SPL token transfers include an on-chain memo via Solana's Memo Program v2 (`MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr`). The `buildMemoInstruction()` and `buildMemoTransaction()` helpers in `transaction-builder.ts` attach human-readable memos to every transfer.
 - **SPL Token Program interaction**: Token transfers are built using `@solana/spl-token` and the Token Program via `buildTokenTransfer()` in `transaction-builder.ts`.
 
@@ -108,16 +113,21 @@ The RPC Layer handles all communication with Solana:
 interface SolanaClient {
   getBalance(pubkey: PublicKey): Promise<BalanceInfo>;
   getTokenBalances(owner: PublicKey): Promise<TokenBalance[]>;
+  getMintDecimals(mint: PublicKey): Promise<number>;       // on-chain lookup
   requestAirdrop(pubkey: PublicKey, amount: number): Promise<TransactionResult>;
+  simulateTransaction(tx: Transaction): Promise<Result<SimulationResult, Error>>;
   sendTransaction(tx: Transaction): Promise<TransactionResult>;
+  getRecentBlockhash(withHeight?: boolean): Promise<...>; // returns lastValidBlockHeight
 }
 ```
 
 **Transaction Flow**:
 ```
-Build Transaction → Sign (Wallet Layer) → Submit → Confirm
-       ↓                    ↓                ↓
-  RPC Layer            Wallet Layer     RPC Layer
+Build Transaction → Sign (Wallet Layer) → Simulate → Submit → Confirm
+       ↓                    ↓                  ↓          ↓
+  RPC Layer            Wallet Layer       RPC Layer   RPC Layer
+                                          (pre-flight,
+                                           no fee burned)
 ```
 
 ### 4. Orchestration Layer (`/src/orchestrator`)
@@ -142,16 +152,19 @@ async function runAgentCycle(agentId: string) {
       context.balance.sol
     );
     
-    // 4. Execute if valid
+    // 3. Execute if valid
     if (valid) {
       await executeIntent(agent, decision.intent);
     }
   }
   
-  // 5. Record intent to global history (IntentRouter)
+  // 5. Record cycle/action counters (cycleCount, actionCount)
+  agent.recordAction(decision.shouldAct);
+  
+  // 6. Record intent to global history (IntentRouter)
   recordIntentHistory(agent, decision);
   
-  // 6. Emit events for frontend
+  // 7. Emit events for frontend
   eventBus.emit(actionEvent);
 }
 ```
@@ -261,6 +274,7 @@ External Agent                              Platform
 - External agents never receive private keys
 - Standard intents are validated against the policy engine
 - `AUTONOMOUS` intents bypass policy validation (operator-accepted risk)
+- `AUTONOMOUS execute_instructions` restricted to a **program allowlist** of 12 vetted programs
 - Rate limiting prevents abuse (30 intents/min per agent)
 - Control tokens are stored as SHA-256 hashes
 - 1 agent = 1 wallet (enforced at the binder level)
@@ -355,6 +369,18 @@ fully logged to the intent history for auditability.
 2. Balance sufficiency
 3. Recipient validation
 4. Rate limiting
+
+## Fee Constants
+
+Pre-decision balance checks use centralized constants from `src/utils/config.ts`
+rather than scattered magic numbers:
+
+```typescript
+ESTIMATED_SOL_TRANSFER_FEE   = 0.00001  // SOL — single-signature headroom
+ESTIMATED_TOKEN_TRANSFER_FEE = 0.01     // SOL — ATA creation + priority headroom
+```
+
+Actual on-chain fees are verified before submission via `simulateTransaction()`.
 
 ## Data Flow Diagram
 
