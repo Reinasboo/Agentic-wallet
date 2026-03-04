@@ -7,8 +7,8 @@
 **Intent-driven · Security-first · BYOA-ready**
 
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![CI](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/ci.yml/badge.svg)](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/ci.yml)
-[![Security Scan](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/security.yml/badge.svg)](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/security.yml)
+[![CI](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/ci.yml)
+[![Security Scan](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/security.yml/badge.svg?branch=main)](https://github.com/Reinasboo/Agentic-wallet/actions/workflows/security.yml)
 [![Last Commit](https://img.shields.io/github/last-commit/Reinasboo/Agentic-wallet)](https://github.com/Reinasboo/Agentic-wallet/commits/main)
 [![Open Issues](https://img.shields.io/github/issues/Reinasboo/Agentic-wallet)](https://github.com/Reinasboo/Agentic-wallet/issues)
 [![GitHub Stars](https://img.shields.io/github/stars/Reinasboo/Agentic-wallet?style=social)](https://github.com/Reinasboo/Agentic-wallet/stargazers)
