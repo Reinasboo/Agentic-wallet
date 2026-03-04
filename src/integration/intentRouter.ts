@@ -22,9 +22,22 @@ import { PublicKey } from '@solana/web3.js';
 import { createLogger } from '../utils/logger.js';
 import { Result, success, failure, Intent, BalanceInfo } from '../utils/types.js';
 import { getWalletManager, WalletManager } from '../wallet/index.js';
-import { getSolanaClient, buildSolTransfer, buildTokenTransfer, buildArbitraryTransaction, deserializeTransaction, KNOWN_PROGRAMS, SolanaClient } from '../rpc/index.js';
+import {
+  getSolanaClient,
+  buildSolTransfer,
+  buildTokenTransfer,
+  buildArbitraryTransaction,
+  deserializeTransaction,
+  KNOWN_PROGRAMS,
+  SolanaClient,
+} from '../rpc/index.js';
 import type { InstructionDescriptor } from '../rpc/index.js';
-import { getAgentRegistry, AgentRegistry, ExternalAgentRecord, SupportedIntentType } from './agentRegistry.js';
+import {
+  getAgentRegistry,
+  AgentRegistry,
+  ExternalAgentRecord,
+  SupportedIntentType,
+} from './agentRegistry.js';
 import { eventBus } from '../orchestrator/event-emitter.js';
 
 const logger = createLogger('BYOA_INTENT');
@@ -143,7 +156,7 @@ export class IntentRouter {
    */
   async submitIntent(
     controlToken: string,
-    externalIntent: ExternalIntent,
+    externalIntent: ExternalIntent
   ): Promise<Result<IntentResult, Error>> {
     const intentId = uuidv4();
     const createdAt = new Date();
@@ -159,22 +172,46 @@ export class IntentRouter {
 
     // ── 2. Check agent is active ───────────
     if (agent.status !== 'active') {
-      return this.reject(intentId, agent.id, externalIntent, `Agent is not active (status: ${agent.status})`, createdAt);
+      return this.reject(
+        intentId,
+        agent.id,
+        externalIntent,
+        `Agent is not active (status: ${agent.status})`,
+        createdAt
+      );
     }
 
     // ── 3. Check wallet binding ────────────
     if (!agent.walletId) {
-      return this.reject(intentId, agent.id, externalIntent, 'Agent has no bound wallet', createdAt);
+      return this.reject(
+        intentId,
+        agent.id,
+        externalIntent,
+        'Agent has no bound wallet',
+        createdAt
+      );
     }
 
     // ── 4. Rate limit ──────────────────────
     if (!this.rateLimiter.check(agent.id)) {
-      return this.reject(intentId, agent.id, externalIntent, 'Rate limit exceeded (max 30 intents/min)', createdAt);
+      return this.reject(
+        intentId,
+        agent.id,
+        externalIntent,
+        'Rate limit exceeded (max 30 intents/min)',
+        createdAt
+      );
     }
 
     // ── 5. Validate intent is supported ────
     if (!agent.supportedIntents.includes(externalIntent.type)) {
-      return this.reject(intentId, agent.id, externalIntent, `Intent type "${externalIntent.type}" is not in this agent's supported set`, createdAt);
+      return this.reject(
+        intentId,
+        agent.id,
+        externalIntent,
+        `Intent type "${externalIntent.type}" is not in this agent's supported set`,
+        createdAt
+      );
     }
 
     // ── 6. Execute ─────────────────────────
@@ -212,9 +249,12 @@ export class IntentRouter {
         executedAt: new Date(),
       };
 
-      logger.info('BYOA intent executed', { intentId, agentId: agent.id, type: externalIntent.type });
+      logger.info('BYOA intent executed', {
+        intentId,
+        agentId: agent.id,
+        type: externalIntent.type,
+      });
       return success(intentResult);
-
     } catch (error) {
       const errMsg = error instanceof Error ? error.message : String(error);
       return this.reject(intentId, agent.id, externalIntent, errMsg, createdAt);
@@ -226,7 +266,7 @@ export class IntentRouter {
   private async executeIntent(
     agent: ExternalAgentRecord,
     ext: ExternalIntent,
-    intentId: string,
+    intentId: string
   ): Promise<Record<string, unknown>> {
     const walletId = agent.walletId!;
 
@@ -251,7 +291,7 @@ export class IntentRouter {
   private async executeAirdrop(
     walletId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const amount = typeof params['amount'] === 'number' ? params['amount'] : 1;
     if (amount <= 0 || amount > 2) {
@@ -290,7 +330,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
     const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
@@ -373,7 +413,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
     const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
@@ -400,9 +440,10 @@ export class IntentRouter {
 
     // H-3/H-4: Accept decimals from params (default 9 for SOL-like tokens).
     // Callers SHOULD specify decimals for non-9-decimal tokens (e.g. USDC=6).
-    const decimals = typeof params['decimals'] === 'number'
-      ? Math.min(Math.max(Math.floor(params['decimals']), 0), 18)
-      : 9;
+    const decimals =
+      typeof params['decimals'] === 'number'
+        ? Math.min(Math.max(Math.floor(params['decimals']), 0), 18)
+        : 9;
     const rawAmount = BigInt(Math.round(amount * Math.pow(10, decimals)));
     const txResult = await buildTokenTransfer(
       pubkeyResult.value,
@@ -410,7 +451,7 @@ export class IntentRouter {
       recipientPubkey,
       rawAmount,
       decimals,
-      `AgenticWallet:byoa_token_transfer:${agentId}`,
+      `AgenticWallet:byoa_token_transfer:${agentId}`
     );
     if (!txResult.ok) throw txResult.error;
 
@@ -475,7 +516,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    intentId: string,
+    intentId: string
   ): Promise<Record<string, unknown>> {
     const action = typeof params['action'] === 'string' ? params['action'] : '';
 
@@ -526,13 +567,15 @@ export class IntentRouter {
         // If the agent sent an unknown action but included `instructions`,
         // treat it as arbitrary instruction execution for forward-compatibility.
         if (Array.isArray(params['instructions'])) {
-          logger.info(`Unknown action "${action}" but instructions present — executing as arbitrary instructions`);
+          logger.info(
+            `Unknown action "${action}" but instructions present — executing as arbitrary instructions`
+          );
           return this.executeArbitraryInstructions(walletId, agentId, params, intentId);
         }
         throw new Error(
           `Autonomous intent: unknown action "${action}". ` +
-          'Supported: airdrop, transfer_sol, transfer_token, query_balance, ' +
-          'execute_instructions, raw_transaction, swap, create_token',
+            'Supported: airdrop, transfer_sol, transfer_token, query_balance, ' +
+            'execute_instructions, raw_transaction, swap, create_token'
         );
     }
   }
@@ -545,7 +588,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
     const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
@@ -554,15 +597,21 @@ export class IntentRouter {
     if (!recipient) throw new Error('Recipient address is required');
 
     let recipientPubkey: PublicKey;
-    try { recipientPubkey = new PublicKey(recipient); } catch { throw new Error(`Invalid recipient: ${recipient}`); }
+    try {
+      recipientPubkey = new PublicKey(recipient);
+    } catch {
+      throw new Error(`Invalid recipient: ${recipient}`);
+    }
 
     const pubkeyResult = this.walletManager.getPublicKey(walletId);
     if (!pubkeyResult.ok) throw pubkeyResult.error;
 
     // Build, sign, send — NO policy check
     const txResult = await buildSolTransfer(
-      pubkeyResult.value, recipientPubkey, amount,
-      `AgenticWallet:autonomous:${agentId}`,
+      pubkeyResult.value,
+      recipientPubkey,
+      amount,
+      `AgenticWallet:autonomous:${agentId}`
     );
     if (!txResult.ok) throw txResult.error;
 
@@ -583,9 +632,15 @@ export class IntentRouter {
       type: 'transaction',
       timestamp: new Date(),
       transaction: {
-        id: uuidv4(), walletId, type: 'transfer_sol', status: 'confirmed',
-        amount, recipient, signature: sendResult.value.signature,
-        createdAt: new Date(), confirmedAt: new Date(),
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_sol',
+        status: 'confirmed',
+        amount,
+        recipient,
+        signature: sendResult.value.signature,
+        createdAt: new Date(),
+        confirmedAt: new Date(),
       },
     });
 
@@ -599,7 +654,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const amount = typeof params['amount'] === 'number' ? params['amount'] : 0;
     const recipient = typeof params['recipient'] === 'string' ? params['recipient'] : '';
@@ -614,19 +669,26 @@ export class IntentRouter {
     try {
       recipientPubkey = new PublicKey(recipient);
       mintPubkey = new PublicKey(mint);
-    } catch { throw new Error(`Invalid address: recipient=${recipient}, mint=${mint}`); }
+    } catch {
+      throw new Error(`Invalid address: recipient=${recipient}, mint=${mint}`);
+    }
 
     const pubkeyResult = this.walletManager.getPublicKey(walletId);
     if (!pubkeyResult.ok) throw pubkeyResult.error;
 
     // H-3/H-4: Accept decimals from params (default 9 for SOL-like tokens).
-    const decimals = typeof params['decimals'] === 'number'
-      ? Math.min(Math.max(Math.floor(params['decimals']), 0), 18)
-      : 9;
+    const decimals =
+      typeof params['decimals'] === 'number'
+        ? Math.min(Math.max(Math.floor(params['decimals']), 0), 18)
+        : 9;
     const rawAmount = BigInt(Math.round(amount * Math.pow(10, decimals)));
     const txResult = await buildTokenTransfer(
-      pubkeyResult.value, mintPubkey, recipientPubkey, rawAmount, decimals,
-      `AgenticWallet:autonomous_token:${agentId}`,
+      pubkeyResult.value,
+      mintPubkey,
+      recipientPubkey,
+      rawAmount,
+      decimals,
+      `AgenticWallet:autonomous_token:${agentId}`
     );
     if (!txResult.ok) throw txResult.error;
 
@@ -647,9 +709,16 @@ export class IntentRouter {
       type: 'transaction',
       timestamp: new Date(),
       transaction: {
-        id: uuidv4(), walletId, type: 'transfer_spl', status: 'confirmed',
-        amount, recipient, mint, signature: sendResult.value.signature,
-        createdAt: new Date(), confirmedAt: new Date(),
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_spl',
+        status: 'confirmed',
+        amount,
+        recipient,
+        mint,
+        signature: sendResult.value.signature,
+        createdAt: new Date(),
+        confirmedAt: new Date(),
       },
     });
 
@@ -671,7 +740,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const instructions = params['instructions'] as InstructionDescriptor[] | undefined;
     if (!Array.isArray(instructions) || instructions.length === 0) {
@@ -682,16 +751,19 @@ export class IntentRouter {
     for (let i = 0; i < instructions.length; i++) {
       const ix = instructions[i]!;
       if (!ix.programId || !Array.isArray(ix.keys) || typeof ix.data !== 'string') {
-        throw new Error(`Instruction[${i}] missing required fields: programId, keys[], data (base64)`);
+        throw new Error(
+          `Instruction[${i}] missing required fields: programId, keys[], data (base64)`
+        );
       }
     }
 
     // No program allowlist — BYOA agents have full autonomy to interact
     // with any Solana program. All executions are logged for auditability.
 
-    const memo = typeof params['memo'] === 'string'
-      ? params['memo']
-      : `AgenticWallet:autonomous_exec:${agentId}`;
+    const memo =
+      typeof params['memo'] === 'string'
+        ? params['memo']
+        : `AgenticWallet:autonomous_exec:${agentId}`;
 
     const pubkeyResult = this.walletManager.getPublicKey(walletId);
     if (!pubkeyResult.ok) throw pubkeyResult.error;
@@ -714,22 +786,30 @@ export class IntentRouter {
 
     this.walletManager.recordTransfer(walletId);
 
-    const programs = instructions.map((ix) => KNOWN_PROGRAMS[ix.programId] ?? ix.programId.slice(0, 8) + '...');
+    const programs = instructions.map(
+      (ix) => KNOWN_PROGRAMS[ix.programId] ?? ix.programId.slice(0, 8) + '...'
+    );
 
     eventBus.emit({
       id: uuidv4(),
       type: 'transaction',
       timestamp: new Date(),
       transaction: {
-        id: uuidv4(), walletId, type: 'raw_execute', status: 'confirmed',
+        id: uuidv4(),
+        walletId,
+        type: 'raw_execute',
+        status: 'confirmed',
         signature: sendResult.value.signature,
-        createdAt: new Date(), confirmedAt: new Date(),
+        createdAt: new Date(),
+        confirmedAt: new Date(),
       },
     });
 
     logger.info('Arbitrary instructions executed', {
-      agentId, signature: sendResult.value.signature,
-      numInstructions: instructions.length, programs,
+      agentId,
+      signature: sendResult.value.signature,
+      numInstructions: instructions.length,
+      programs,
     });
 
     return {
@@ -753,7 +833,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const rawTx = typeof params['transaction'] === 'string' ? params['transaction'] : '';
     if (!rawTx) {
@@ -796,9 +876,13 @@ export class IntentRouter {
       type: 'transaction',
       timestamp: new Date(),
       transaction: {
-        id: uuidv4(), walletId, type: 'raw_execute', status: 'confirmed',
+        id: uuidv4(),
+        walletId,
+        type: 'raw_execute',
+        status: 'confirmed',
         signature: sendResult.value.signature,
-        createdAt: new Date(), confirmedAt: new Date(),
+        createdAt: new Date(),
+        confirmedAt: new Date(),
       },
     });
 
@@ -824,7 +908,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const instructions = params['instructions'] as InstructionDescriptor[] | undefined;
     if (!Array.isArray(instructions) || instructions.length === 0) {
@@ -861,17 +945,32 @@ export class IntentRouter {
       type: 'transaction',
       timestamp: new Date(),
       transaction: {
-        id: uuidv4(), walletId, type: 'swap', status: 'confirmed',
-        amount, signature: sendResult.value.signature,
-        createdAt: new Date(), confirmedAt: new Date(),
+        id: uuidv4(),
+        walletId,
+        type: 'swap',
+        status: 'confirmed',
+        amount,
+        signature: sendResult.value.signature,
+        createdAt: new Date(),
+        confirmedAt: new Date(),
       },
     });
 
-    logger.info('Swap executed', { agentId, dex, inputMint, outputMint, amount, signature: sendResult.value.signature });
+    logger.info('Swap executed', {
+      agentId,
+      dex,
+      inputMint,
+      outputMint,
+      amount,
+      signature: sendResult.value.signature,
+    });
 
     return {
       signature: sendResult.value.signature,
-      dex, inputMint, outputMint, amount,
+      dex,
+      inputMint,
+      outputMint,
+      amount,
       autonomous: true,
     };
   }
@@ -892,7 +991,7 @@ export class IntentRouter {
     walletId: string,
     agentId: string,
     params: Record<string, unknown>,
-    _intentId: string,
+    _intentId: string
   ): Promise<Record<string, unknown>> {
     const instructions = params['instructions'] as InstructionDescriptor[] | undefined;
     if (!Array.isArray(instructions) || instructions.length === 0) {
@@ -928,17 +1027,29 @@ export class IntentRouter {
       type: 'transaction',
       timestamp: new Date(),
       transaction: {
-        id: uuidv4(), walletId, type: 'create_token', status: 'confirmed',
+        id: uuidv4(),
+        walletId,
+        type: 'create_token',
+        status: 'confirmed',
         signature: sendResult.value.signature,
-        createdAt: new Date(), confirmedAt: new Date(),
+        createdAt: new Date(),
+        confirmedAt: new Date(),
       },
     });
 
-    logger.info('Token created', { agentId, platform, tokenName, tokenSymbol, signature: sendResult.value.signature });
+    logger.info('Token created', {
+      agentId,
+      platform,
+      tokenName,
+      tokenSymbol,
+      signature: sendResult.value.signature,
+    });
 
     return {
       signature: sendResult.value.signature,
-      platform, tokenName, tokenSymbol,
+      platform,
+      tokenName,
+      tokenSymbol,
       autonomous: true,
     };
   }
@@ -960,7 +1071,7 @@ export class IntentRouter {
     agentId: string,
     ext: ExternalIntent,
     reason: string,
-    createdAt: Date,
+    createdAt: Date
   ): Result<IntentResult, Error> {
     const record: IntentHistoryRecord = {
       intentId,

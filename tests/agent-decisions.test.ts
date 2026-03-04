@@ -50,7 +50,10 @@ describe('AccumulatorAgent', () => {
 
   it('requests airdrop when balance is below minBalance', async () => {
     const agent = new AccumulatorAgent(
-      'test-acc', 'wallet_1', '11111111111111111111111111111111', params,
+      'test-acc',
+      'wallet_1',
+      '11111111111111111111111111111111',
+      params
     );
     const decision = await agent.think(makeContext(0.1));
     expect(decision.shouldAct).toBe(true);
@@ -59,7 +62,10 @@ describe('AccumulatorAgent', () => {
 
   it('does not act when balance is above targetBalance', async () => {
     const agent = new AccumulatorAgent(
-      'test-acc-ok', 'wallet_2', '11111111111111111111111111111111', params,
+      'test-acc-ok',
+      'wallet_2',
+      '11111111111111111111111111111111',
+      params
     );
     const decision = await agent.think(makeContext(5.0));
     expect(decision.shouldAct).toBe(false);
@@ -75,7 +81,10 @@ describe('BalanceGuardAgent', () => {
 
   it('triggers emergency airdrop when critically low', async () => {
     const agent = new BalanceGuardAgent(
-      'test-bg', 'wallet_3', '11111111111111111111111111111111', params,
+      'test-bg',
+      'wallet_3',
+      '11111111111111111111111111111111',
+      params
     );
     const decision = await agent.think(makeContext(0.01));
     expect(decision.shouldAct).toBe(true);
@@ -84,7 +93,10 @@ describe('BalanceGuardAgent', () => {
 
   it('stays idle when balance is healthy', async () => {
     const agent = new BalanceGuardAgent(
-      'test-bg-ok', 'wallet_4', '11111111111111111111111111111111', params,
+      'test-bg-ok',
+      'wallet_4',
+      '11111111111111111111111111111111',
+      params
     );
     const decision = await agent.think(makeContext(1.0));
     expect(decision.shouldAct).toBe(false);
@@ -103,7 +115,10 @@ describe('ScheduledPayerAgent', () => {
 
   it('sends payment when balance supports it', async () => {
     const agent = new ScheduledPayerAgent(
-      'test-sp', 'wallet_5', '11111111111111111111111111111111', params,
+      'test-sp',
+      'wallet_5',
+      '11111111111111111111111111111111',
+      params
     );
     const decision = await agent.think(makeContext(1.0));
     expect(decision.shouldAct).toBe(true);
@@ -112,7 +127,10 @@ describe('ScheduledPayerAgent', () => {
 
   it('does not pay when balance is too low', async () => {
     const agent = new ScheduledPayerAgent(
-      'test-sp-low', 'wallet_6', '11111111111111111111111111111111', params,
+      'test-sp-low',
+      'wallet_6',
+      '11111111111111111111111111111111',
+      params
     );
     const decision = await agent.think(makeContext(0.02));
     expect(decision.shouldAct).toBe(false);

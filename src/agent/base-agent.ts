@@ -1,9 +1,9 @@
 /**
  * Base Agent
- * 
+ *
  * Defines the interface and base implementation for all agents.
  * Agents are autonomous decision-makers that emit intents.
- * 
+ *
  * IMPORTANT: Agents have NO access to private keys.
  * They can only emit intents which are validated and executed by the wallet layer.
  */
@@ -54,7 +54,7 @@ export abstract class BaseAgent {
   readonly name: string;
   readonly strategy: AgentStrategy;
   readonly createdAt: Date;
-  
+
   protected status: AgentStatus = 'idle';
   protected walletId: string;
   protected walletPublicKey: string;
@@ -72,7 +72,7 @@ export abstract class BaseAgent {
     walletPublicKey: string,
     strategyParams?: Record<string, unknown>,
     executionSettings?: Partial<ExecutionSettings>,
-    idOverride?: string,
+    idOverride?: string
   ) {
     this.id = idOverride ?? uuidv4();
     this.name = name;
@@ -121,7 +121,7 @@ export abstract class BaseAgent {
     const previousStatus = this.status;
     this.status = status;
     this.errorMessage = errorMessage;
-    
+
     logger.info('Agent status changed', {
       agentId: this.id,
       previousStatus,
@@ -183,7 +183,9 @@ export abstract class BaseAgent {
    */
   protected createTransferSolIntent(recipient: string, amount: number): TransferSolIntent {
     // Validate recipient is a valid Solana public key
-    try { new PublicKey(recipient); } catch {
+    try {
+      new PublicKey(recipient);
+    } catch {
       throw new Error(`Invalid recipient address: ${recipient}`);
     }
     return {
@@ -199,11 +201,19 @@ export abstract class BaseAgent {
   /**
    * Create an SPL token transfer intent (validates addresses)
    */
-  protected createTransferTokenIntent(mint: string, recipient: string, amount: number): TransferTokenIntent {
-    try { new PublicKey(recipient); } catch {
+  protected createTransferTokenIntent(
+    mint: string,
+    recipient: string,
+    amount: number
+  ): TransferTokenIntent {
+    try {
+      new PublicKey(recipient);
+    } catch {
       throw new Error(`Invalid recipient address: ${recipient}`);
     }
-    try { new PublicKey(mint); } catch {
+    try {
+      new PublicKey(mint);
+    } catch {
       throw new Error(`Invalid mint address: ${mint}`);
     }
     return {

@@ -2,7 +2,7 @@
 
 /**
  * Transactions Page
- * 
+ *
  * Full transaction history across all agents.
  */
 
@@ -89,10 +89,7 @@ export default function TransactionsPage() {
                 </div>
               </div>
 
-              <button
-                onClick={refetch}
-                className="btn btn-sm inline-flex items-center gap-2"
-              >
+              <button onClick={refetch} className="btn btn-sm inline-flex items-center gap-2">
                 <RefreshCw className="w-4 h-4" />
                 Refresh
               </button>

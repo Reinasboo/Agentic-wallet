@@ -93,18 +93,21 @@ Whether you're building autonomous treasury bots, fleet-scale DeFi operators, or
 ## Key Features
 
 ### Agent Platform
+
 - **4 built-in strategies** — Accumulator, Distributor, Balance Guard, Scheduled Payer
 - **Strategy Registry** — register and validate custom strategies at runtime (Zod schemas)
 - **Multi-agent orchestrator** — run up to 20 concurrent agents, each with isolated wallets
 - **Dynamic reconfiguration** — update agent parameters without downtime
 
 ### Bring Your Own Agent (BYOA)
+
 - Register external AI agents via REST API with bearer-token authentication
 - **5 intent types** — `REQUEST_AIRDROP`, `TRANSFER_SOL`, `TRANSFER_TOKEN`, `QUERY_BALANCE`, `AUTONOMOUS`
 - **8 autonomous actions** — airdrop, transfer SOL/tokens, swap, create token, execute instructions, raw transactions
 - Full intent history logging for audit and compliance
 
 ### Security
+
 - **AES-256-GCM** encrypted key storage with scrypt key derivation
 - Agents **never** access private keys — signing is isolated to the wallet layer
 - Admin API key (`X-Admin-Key`) required for all mutation endpoints
@@ -113,6 +116,7 @@ Whether you're building autonomous treasury bots, fleet-scale DeFi operators, or
 - 26-finding security audit completed and resolved
 
 ### Real-Time Dashboard
+
 - Next.js 14 frontend with 11 routes — dashboard, agents, transactions, strategies, intent history
 - 5-step agent creation wizard with dynamic parameter forms
 - Live WebSocket updates for agent activity and transactions
@@ -122,15 +126,15 @@ Whether you're building autonomous treasury bots, fleet-scale DeFi operators, or
 
 ## Tech Stack
 
-| Layer | Technology |
-|---|---|
-| **Frontend** | Next.js 14, React 18, Tailwind CSS, WebSocket |
-| **API Server** | Express.js, Zod validation, REST + WebSocket |
-| **Agent Runtime** | TypeScript, strategy pattern, event-driven orchestrator |
-| **Wallet Layer** | AES-256-GCM encryption, scrypt KDF, policy engine |
-| **Blockchain** | Solana Devnet via `@solana/web3.js` 1.91, `@solana/spl-token` |
-| **Testing** | Vitest |
-| **CI/CD** | GitHub Actions (lint, test, build, audit, security scan, auto-release) |
+| Layer             | Technology                                                             |
+| ----------------- | ---------------------------------------------------------------------- |
+| **Frontend**      | Next.js 14, React 18, Tailwind CSS, WebSocket                          |
+| **API Server**    | Express.js, Zod validation, REST + WebSocket                           |
+| **Agent Runtime** | TypeScript, strategy pattern, event-driven orchestrator                |
+| **Wallet Layer**  | AES-256-GCM encryption, scrypt KDF, policy engine                      |
+| **Blockchain**    | Solana Devnet via `@solana/web3.js` 1.91, `@solana/spl-token`          |
+| **Testing**       | Vitest                                                                 |
+| **CI/CD**         | GitHub Actions (lint, test, build, audit, security scan, auto-release) |
 
 ---
 
@@ -145,11 +149,11 @@ cp .env.example .env   # then edit with your values
 npm run dev
 ```
 
-| Service | URL |
-|---|---|
-| Dashboard | `http://localhost:3000` |
+| Service    | URL                     |
+| ---------- | ----------------------- |
+| Dashboard  | `http://localhost:3000` |
 | API Server | `http://localhost:3001` |
-| WebSocket | `ws://localhost:3002` |
+| WebSocket  | `ws://localhost:3002`   |
 
 ---
 
@@ -157,11 +161,11 @@ npm run dev
 
 ### Prerequisites
 
-| Requirement | Version |
-|---|---|
-| Node.js | ≥ 18.0 (20 recommended) |
-| npm | ≥ 9.0 |
-| Git | latest |
+| Requirement | Version                 |
+| ----------- | ----------------------- |
+| Node.js     | ≥ 18.0 (20 recommended) |
+| npm         | ≥ 9.0                   |
+| Git         | latest                  |
 
 ### Step-by-Step
 
@@ -241,16 +245,16 @@ curl -X POST http://localhost:3001/api/byoa/intent \
 
 Copy `.env.example` to `.env` and configure:
 
-| Variable | Description | Default |
-|---|---|---|
-| `SOLANA_RPC_URL` | Solana RPC endpoint | `https://api.devnet.solana.com` |
-| `SOLANA_NETWORK` | Network identifier | `devnet` |
-| `PORT` | API server port | `3001` |
-| `WS_PORT` | WebSocket server port | `3002` |
-| `KEY_ENCRYPTION_SECRET` | **Required.** Encryption secret for wallet key material | — |
-| `ADMIN_API_KEY` | **Required.** Admin API key for mutation endpoints | — |
-| `MAX_AGENTS` | Maximum concurrent agents | `20` |
-| `AGENT_LOOP_INTERVAL_MS` | Agent scheduler loop interval (ms) | `30000` |
+| Variable                 | Description                                             | Default                         |
+| ------------------------ | ------------------------------------------------------- | ------------------------------- |
+| `SOLANA_RPC_URL`         | Solana RPC endpoint                                     | `https://api.devnet.solana.com` |
+| `SOLANA_NETWORK`         | Network identifier                                      | `devnet`                        |
+| `PORT`                   | API server port                                         | `3001`                          |
+| `WS_PORT`                | WebSocket server port                                   | `3002`                          |
+| `KEY_ENCRYPTION_SECRET`  | **Required.** Encryption secret for wallet key material | —                               |
+| `ADMIN_API_KEY`          | **Required.** Admin API key for mutation endpoints      | —                               |
+| `MAX_AGENTS`             | Maximum concurrent agents                               | `20`                            |
+| `AGENT_LOOP_INTERVAL_MS` | Agent scheduler loop interval (ms)                      | `30000`                         |
 
 > **Security:** Generate secrets with `node -e "console.log(require('crypto').randomBytes(32).toString('hex'))"`
 
@@ -317,6 +321,7 @@ Tests cover agent decision logic, wallet management, encryption, data store oper
 We welcome contributions. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before submitting a pull request.
 
 **Key standards:**
+
 - [Conventional Commits](https://www.conventionalcommits.org/) for commit messages
 - Branch naming: `feat/`, `fix/`, `docs/`, `test/`, `ci/`, `chore/`, `security/`
 - All PRs require passing CI checks and maintainer review
@@ -326,12 +331,12 @@ We welcome contributions. Please read [CONTRIBUTING.md](CONTRIBUTING.md) before 
 
 ## Roadmap
 
-| Quarter | Focus |
-|---|---|
-| **2026 Q2** | Stabilize governance, add coverage CI badge, operational runbooks |
-| **2026 Q3** | Production deployment guides, observability docs, platform compatibility |
-| **2026 Q4** | Release security review checklist, contributor automation, LTS cadence |
-| **Long-term** | Multi-network support, compliance mappings, advanced BYOA policy packs |
+| Quarter       | Focus                                                                    |
+| ------------- | ------------------------------------------------------------------------ |
+| **2026 Q2**   | Stabilize governance, add coverage CI badge, operational runbooks        |
+| **2026 Q3**   | Production deployment guides, observability docs, platform compatibility |
+| **2026 Q4**   | Release security review checklist, contributor automation, LTS cadence   |
+| **Long-term** | Multi-network support, compliance mappings, advanced BYOA policy packs   |
 
 Full details in [ROADMAP.md](ROADMAP.md).
 
@@ -345,9 +350,9 @@ This project is licensed under the **MIT License** — see [LICENSE](LICENSE) fo
 
 ## Maintainers
 
-| Role | Contact |
-|---|---|
-| **Lead Maintainer** | [@Reinasboo](https://github.com/Reinasboo) |
+| Role                 | Contact                                                           |
+| -------------------- | ----------------------------------------------------------------- |
+| **Lead Maintainer**  | [@Reinasboo](https://github.com/Reinasboo)                        |
 | **Security Contact** | [security@agentic-wallet.dev](mailto:security@agentic-wallet.dev) |
 
 ---

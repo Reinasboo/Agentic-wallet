@@ -1,6 +1,6 @@
 /**
  * Agentic Wallet System - Main Entry Point
- * 
+ *
  * Starts the API server and initializes the system.
  */
 
@@ -47,19 +47,19 @@ function redactUrl(url: string): string {
 async function main(): Promise<void> {
   try {
     const config = getConfig();
-    
+
     logger.info('Starting Agentic Wallet System', {
       network: config.SOLANA_NETWORK,
       rpcUrl: redactUrl(config.SOLANA_RPC_URL),
     });
-    
+
     startServer();
-    
+
     // Restore persisted agents (wallets and BYOA records are loaded in their
     // respective constructors; agents need an explicit call because startup
     // auto-starts timers that cannot run from a constructor).
     getOrchestrator().restoreFromStore();
-    
+
     logger.info('System started successfully');
     logger.info(`API available at http://localhost:${config.PORT}`);
     logger.info(`WebSocket available at ws://localhost:${config.WS_PORT}`);

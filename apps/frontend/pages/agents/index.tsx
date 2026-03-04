@@ -2,7 +2,7 @@
 
 /**
  * Agents Page
- * 
+ *
  * Complete list with search and filtering.
  * Clean, scannable layout.
  */
@@ -10,12 +10,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import { Plus, Search } from 'lucide-react';
-import {
-  Sidebar,
-  Header,
-  CreateAgentModal,
-  AgentCard,
-} from '@/components';
+import { Sidebar, Header, CreateAgentModal, AgentCard } from '@/components';
 import { useAgents } from '@/lib/hooks';
 import { cn } from '@/lib/utils';
 import type { Agent } from '@/lib/types';
@@ -50,10 +45,7 @@ export default function AgentsPage() {
         <Sidebar />
 
         <div className="flex-1 ml-60">
-          <Header 
-            title="Agents"
-            subtitle="Manage autonomous agents"
-          />
+          <Header title="Agents" subtitle="Manage autonomous agents" />
 
           <main className="px-8 lg:px-12 pb-12 space-y-6">
             {/* Toolbar */}
@@ -90,10 +82,7 @@ export default function AgentsPage() {
                 </div>
               </div>
 
-              <button
-                onClick={() => setShowCreateModal(true)}
-                className="btn btn-primary btn-sm"
-              >
+              <button onClick={() => setShowCreateModal(true)} className="btn btn-primary btn-sm">
                 <Plus className="w-4 h-4" />
                 New Agent
               </button>
@@ -116,9 +105,7 @@ export default function AgentsPage() {
             {/* No results */}
             {filteredAgents.length === 0 && agents.length > 0 && (
               <div className="card p-8 text-center">
-                <p className="text-body text-text-tertiary">
-                  No agents match your filters
-                </p>
+                <p className="text-body text-text-tertiary">No agents match your filters</p>
               </div>
             )}
           </main>
@@ -133,4 +120,3 @@ export default function AgentsPage() {
     </>
   );
 }
-

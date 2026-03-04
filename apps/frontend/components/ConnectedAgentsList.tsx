@@ -9,15 +9,7 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import {
-  Plug,
-  Wifi,
-  WifiOff,
-  ShieldAlert,
-  Globe,
-  Monitor,
-  ArrowRight,
-} from 'lucide-react';
+import { Plug, Wifi, WifiOff, ShieldAlert, Globe, Monitor, ArrowRight } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ExternalAgent, ExternalAgentStatus } from '@/lib/types';
 
@@ -75,9 +67,7 @@ function ConnectedAgentCard({ agent }: ConnectedAgentCardProps) {
               </h3>
               <div className="flex items-center gap-1.5 mt-0.5">
                 <TypeIcon className="w-3 h-3 text-text-muted" />
-                <span className="text-caption text-text-muted capitalize">
-                  {agent.type}
-                </span>
+                <span className="text-caption text-text-muted capitalize">{agent.type}</span>
               </div>
             </div>
           </div>
@@ -85,7 +75,7 @@ function ConnectedAgentCard({ agent }: ConnectedAgentCardProps) {
           <span
             className={cn(
               'inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-caption font-medium',
-              status.color,
+              status.color
             )}
           >
             <StatusIcon className="w-3.5 h-3.5" />
@@ -150,9 +140,7 @@ export function ConnectedAgentsList({ agents }: ConnectedAgentsListProps) {
     return (
       <div className="bg-surface border border-border-light rounded-2xl p-12 text-center">
         <Plug className="w-10 h-10 text-text-muted mx-auto mb-3" />
-        <p className="text-body text-text-secondary mb-1">
-          No connected agents yet
-        </p>
+        <p className="text-body text-text-secondary mb-1">No connected agents yet</p>
         <p className="text-caption text-text-muted">
           External agents will appear here after registering via the BYOA API.
         </p>

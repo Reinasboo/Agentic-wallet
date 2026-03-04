@@ -4,7 +4,17 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react';
 import * as api from './api';
-import type { Agent, AgentDetail, SystemStats, SystemEvent, Transaction, ExternalAgent, ExternalAgentDetail, IntentHistoryRecord, StrategyDefinition } from './types';
+import type {
+  Agent,
+  AgentDetail,
+  SystemStats,
+  SystemEvent,
+  Transaction,
+  ExternalAgent,
+  ExternalAgentDetail,
+  IntentHistoryRecord,
+  StrategyDefinition,
+} from './types';
 
 // Hook for fetching available strategies
 export function useStrategies() {

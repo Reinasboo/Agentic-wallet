@@ -16,11 +16,7 @@
 
 import { createLogger } from '../utils/logger.js';
 import { Result, success, failure } from '../utils/types.js';
-import {
-  ExternalAgentInfo,
-  ExternalAgentType,
-  SupportedIntentType,
-} from './agentRegistry.js';
+import { ExternalAgentInfo, ExternalAgentType, SupportedIntentType } from './agentRegistry.js';
 import { IntentResult } from './intentRouter.js';
 
 const logger = createLogger('BYOA_ADAPTER');
@@ -50,9 +46,7 @@ export interface AgentCallbackResponse {
  * A developer can register an in-process function that the platform
  * will invoke instead of making HTTP calls.
  */
-export type LocalAdapterFn = (
-  notification: AgentNotification,
-) => Promise<AgentCallbackResponse>;
+export type LocalAdapterFn = (notification: AgentNotification) => Promise<AgentCallbackResponse>;
 
 // ────────────────────────────────────────────
 // Agent Adapter
@@ -88,7 +82,7 @@ export class AgentAdapter {
    */
   async notify(
     agent: ExternalAgentInfo,
-    notification: AgentNotification,
+    notification: AgentNotification
   ): Promise<Result<AgentCallbackResponse, Error>> {
     try {
       if (agent.type === 'local') {
@@ -137,10 +131,7 @@ export class AgentAdapter {
    * Convenience method to deliver an intent execution result
    * back to the external agent (optional callback).
    */
-  async deliverResult(
-    agent: ExternalAgentInfo,
-    intentResult: IntentResult,
-  ): Promise<void> {
+  async deliverResult(agent: ExternalAgentInfo, intentResult: IntentResult): Promise<void> {
     const notification: AgentNotification = {
       event: 'intent_result',
       agentId: agent.id,
@@ -161,7 +152,7 @@ export class AgentAdapter {
 
   private async notifyLocal(
     agentId: string,
-    notification: AgentNotification,
+    notification: AgentNotification
   ): Promise<Result<AgentCallbackResponse, Error>> {
     const adapter = this.localAdapters.get(agentId);
     if (!adapter) {
@@ -174,7 +165,7 @@ export class AgentAdapter {
 
   private async notifyRemote(
     agent: ExternalAgentInfo,
-    notification: AgentNotification,
+    notification: AgentNotification
   ): Promise<Result<AgentCallbackResponse, Error>> {
     if (!agent.endpoint) {
       return failure(new Error(`Remote agent "${agent.name}" has no endpoint`));

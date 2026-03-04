@@ -1,9 +1,9 @@
 /**
  * Accumulator Agent
- * 
+ *
  * Strategy: Automatically requests airdrops to maintain a minimum balance.
  * This agent monitors its balance and requests devnet SOL when below threshold.
- * 
+ *
  * Use case: Ensuring the wallet always has SOL for transaction fees.
  */
 
@@ -14,9 +14,9 @@ import { createLogger } from '../utils/logger.js';
 const logger = createLogger('ACCUMULATOR');
 
 export interface AccumulatorParams {
-  readonly targetBalance: number;    // SOL - try to maintain this balance
-  readonly minBalance: number;       // SOL - request airdrop below this
-  readonly airdropAmount: number;    // SOL - amount to request per airdrop
+  readonly targetBalance: number; // SOL - try to maintain this balance
+  readonly minBalance: number; // SOL - request airdrop below this
+  readonly airdropAmount: number; // SOL - amount to request per airdrop
   readonly maxAirdropsPerDay: number;
 }
 

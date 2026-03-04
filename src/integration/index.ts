@@ -18,11 +18,7 @@ export {
   RegistrationResult,
 } from './agentRegistry.js';
 
-export {
-  WalletBinder,
-  getWalletBinder,
-  WalletBindingResult,
-} from './walletBinder.js';
+export { WalletBinder, getWalletBinder, WalletBindingResult } from './walletBinder.js';
 
 export {
   IntentRouter,

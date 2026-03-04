@@ -2,21 +2,14 @@
 
 /**
  * Agent Card Component
- * 
+ *
  * Clean, calm agent card with subtle interactions.
  * Focused on clarity and status visibility.
  */
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { 
-  Bot, 
-  Play, 
-  Square, 
-  Copy,
-  Check,
-  ChevronRight,
-} from 'lucide-react';
+import { Bot, Play, Square, Copy, Check, ChevronRight } from 'lucide-react';
 import { useState } from 'react';
 import type { Agent } from '@/lib/types';
 import * as api from '@/lib/api';
@@ -79,23 +72,21 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
         {/* Header */}
         <div className="flex items-start justify-between mb-5">
           <div className="flex items-center gap-3">
-            <div className={cn(
-              'icon-container',
-              agent.strategy === 'accumulator' 
-                ? 'bg-primary-100' 
-                : 'bg-secondary-100'
-            )}>
-              <Bot className={cn(
-                'w-5 h-5',
-                agent.strategy === 'accumulator' 
-                  ? 'text-primary-600' 
-                  : 'text-secondary-600'
-              )} />
+            <div
+              className={cn(
+                'icon-container',
+                agent.strategy === 'accumulator' ? 'bg-primary-100' : 'bg-secondary-100'
+              )}
+            >
+              <Bot
+                className={cn(
+                  'w-5 h-5',
+                  agent.strategy === 'accumulator' ? 'text-primary-600' : 'text-secondary-600'
+                )}
+              />
             </div>
             <div>
-              <h3 className="text-body font-medium text-text-primary">
-                {agent.name}
-              </h3>
+              <h3 className="text-body font-medium text-text-primary">{agent.name}</h3>
               <span className="text-caption text-text-tertiary">
                 {getStrategyDisplayName(agent.strategy)}
               </span>
@@ -104,15 +95,21 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
 
           {/* Status badge */}
           <span className={cn('badge', getStatusBadgeClass(agent.status))}>
-            <span className={cn(
-              'w-1.5 h-1.5 rounded-full',
-              agent.status === 'executing' ? 'animate-pulse-subtle' : '',
-              agent.status === 'idle' ? 'bg-status-idle' :
-              agent.status === 'executing' ? 'bg-status-warning' :
-              agent.status === 'error' ? 'bg-status-error' :
-              agent.status === 'stopped' ? 'bg-text-muted' :
-              'bg-status-info'
-            )} />
+            <span
+              className={cn(
+                'w-1.5 h-1.5 rounded-full',
+                agent.status === 'executing' ? 'animate-pulse-subtle' : '',
+                agent.status === 'idle'
+                  ? 'bg-status-idle'
+                  : agent.status === 'executing'
+                    ? 'bg-status-warning'
+                    : agent.status === 'error'
+                      ? 'bg-status-error'
+                      : agent.status === 'stopped'
+                        ? 'bg-text-muted'
+                        : 'bg-status-info'
+              )}
+            />
             {agent.status}
           </span>
         </div>
@@ -161,9 +158,7 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
         {/* Error message */}
         {agent.errorMessage && (
           <div className="mt-4 p-3 bg-status-error-bg rounded-lg border border-status-error/20">
-            <p className="text-caption text-status-error truncate">
-              {agent.errorMessage}
-            </p>
+            <p className="text-caption text-status-error truncate">{agent.errorMessage}</p>
           </div>
         )}
 
@@ -197,4 +192,3 @@ export function AgentCard({ agent, onUpdate }: AgentCardProps) {
     </Link>
   );
 }
-

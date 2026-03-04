@@ -2,7 +2,7 @@
 
 /**
  * Dashboard Page
- * 
+ *
  * Calm overview of system state.
  * Content-focused with generous whitespace.
  */
@@ -34,10 +34,7 @@ export default function Dashboard() {
         <Sidebar />
 
         <div className="flex-1 ml-60">
-          <Header 
-            title="Overview"
-            subtitle="Monitor your autonomous agents"
-          />
+          <Header title="Overview" subtitle="Monitor your autonomous agents" />
 
           <main className="px-8 lg:px-12 pb-12 space-y-8">
             {/* Stats */}
@@ -50,9 +47,7 @@ export default function Dashboard() {
               {/* Agents */}
               <section className="xl:col-span-2 space-y-5">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-label text-text-secondary">
-                    Agents
-                  </h2>
+                  <h2 className="text-label text-text-secondary">Agents</h2>
                   <button
                     onClick={() => setShowCreateModal(true)}
                     className="btn btn-primary btn-sm"
@@ -81,4 +76,3 @@ export default function Dashboard() {
     </>
   );
 }
-

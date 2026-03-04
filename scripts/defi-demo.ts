@@ -61,7 +61,7 @@ async function api(
   method: string,
   path: string,
   body?: unknown,
-  bearerToken?: string,
+  bearerToken?: string
 ): Promise<any> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (bearerToken) headers['Authorization'] = `Bearer ${bearerToken}`;
@@ -147,7 +147,7 @@ async function main() {
     'POST',
     '/api/byoa/intents',
     { type: 'REQUEST_AIRDROP', params: { amount: 2 } },
-    controlToken,
+    controlToken
   );
   const airdropSig = airdropResult.data?.result?.signature;
   console.log(`  Signature:       ${airdropSig}`);
@@ -160,7 +160,7 @@ async function main() {
     'POST',
     '/api/byoa/intents',
     { type: 'QUERY_BALANCE', params: {} },
-    controlToken,
+    controlToken
   );
   const balance = balResult.data?.result?.balance ?? balResult.data?.result;
   console.log(`  Balance:         ${JSON.stringify(balance)}`);
@@ -185,10 +185,10 @@ async function main() {
 
   // 3a – Create the wSOL Associated Token Account
   const createWsolAtaIx = createAssociatedTokenAccountInstruction(
-    walletPubkey,  // payer
-    wsolAta,       // ATA address (derived from NATIVE_MINT + owner)
-    walletPubkey,  // owner
-    NATIVE_MINT,   // mint = Wrapped SOL
+    walletPubkey, // payer
+    wsolAta, // ATA address (derived from NATIVE_MINT + owner)
+    walletPubkey, // owner
+    NATIVE_MINT // mint = Wrapped SOL
   );
 
   // 3b – Transfer lamports into the ATA
@@ -217,7 +217,7 @@ async function main() {
         memo: 'DeFi Demo: Wrap 0.5 SOL → wSOL (ATA + transfer + syncNative)',
       },
     },
-    controlToken,
+    controlToken
   );
   const wrapSig = wrapResult.data?.result?.signature;
   console.log(`  wSOL ATA:        ${wsolAta.toBase58()}`);
@@ -238,9 +238,9 @@ async function main() {
   console.log('┌─ Step 4: Unwrap wSOL → SOL (close ATA) ──────────────────┐');
 
   const closeAtaIx = createCloseAccountInstruction(
-    wsolAta,       // account to close
-    walletPubkey,  // destination for remaining lamports
-    walletPubkey,  // authority (ATA owner)
+    wsolAta, // account to close
+    walletPubkey, // destination for remaining lamports
+    walletPubkey // authority (ATA owner)
   );
 
   const encodedClose = encodeIx(closeAtaIx);
@@ -256,7 +256,7 @@ async function main() {
         memo: 'DeFi Demo: Unwrap wSOL → SOL (close wSOL ATA)',
       },
     },
-    controlToken,
+    controlToken
   );
   const unwrapSig = unwrapResult.data?.result?.signature;
   console.log(`  Signature:       ${unwrapSig}`);
@@ -284,7 +284,7 @@ async function main() {
         recipient: recipientPubkey.toBase58(),
       },
     },
-    controlToken,
+    controlToken
   );
   const transferSig = transferResult.data?.result?.signature;
   console.log(`  Recipient:       ${recipientPubkey.toBase58()}`);
@@ -300,7 +300,7 @@ async function main() {
     'POST',
     '/api/byoa/intents',
     { type: 'QUERY_BALANCE', params: {} },
-    controlToken,
+    controlToken
   );
   const finalBalance = finalBal.data?.result?.balance ?? finalBal.data?.result;
 

@@ -1,6 +1,6 @@
 /**
  * Agent Factory
- * 
+ *
  * Creates agents based on strategy type and configuration.
  * Uses the strategy registry for validation and supported strategy discovery.
  */
@@ -30,7 +30,8 @@ export interface CreateAgentOptions {
  * Create an agent based on configuration
  */
 export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Error> {
-  const { config, walletId, walletPublicKey } = options;  const registry = getStrategyRegistry();
+  const { config, walletId, walletPublicKey } = options;
+  const registry = getStrategyRegistry();
 
   logger.info('Creating agent', {
     name: config.name,
@@ -61,7 +62,7 @@ export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Erro
           config.name,
           walletId,
           walletPublicKey,
-          validatedParams as unknown as Partial<AccumulatorParams>,
+          validatedParams as unknown as Partial<AccumulatorParams>
         );
         break;
 
@@ -70,7 +71,7 @@ export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Erro
           config.name,
           walletId,
           walletPublicKey,
-          validatedParams as unknown as Partial<DistributorParams>,
+          validatedParams as unknown as Partial<DistributorParams>
         );
         break;
 
@@ -79,7 +80,7 @@ export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Erro
           config.name,
           walletId,
           walletPublicKey,
-          validatedParams as unknown as Partial<BalanceGuardParams>,
+          validatedParams as unknown as Partial<BalanceGuardParams>
         );
         break;
 
@@ -88,12 +89,14 @@ export function createAgent(options: CreateAgentOptions): Result<BaseAgent, Erro
           config.name,
           walletId,
           walletPublicKey,
-          validatedParams as unknown as Partial<ScheduledPayerParams>,
+          validatedParams as unknown as Partial<ScheduledPayerParams>
         );
         break;
 
       default:
-        return failure(new Error(`Strategy "${config.strategy}" is registered but has no agent implementation`));
+        return failure(
+          new Error(`Strategy "${config.strategy}" is registered but has no agent implementation`)
+        );
     }
 
     // Apply execution settings if provided

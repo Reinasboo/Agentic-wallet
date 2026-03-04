@@ -9,10 +9,10 @@ following structured processes defined in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Project Leadership
 
-| Role | Person | Contact |
-|---|---|---|
-| **Lead Maintainer** | Reinasboo | [@Reinasboo](https://github.com/Reinasboo) |
-| **Security Lead** | Reinasboo | [security@agentic-wallet.dev](mailto:security@agentic-wallet.dev) |
+| Role                | Person    | Contact                                                           |
+| ------------------- | --------- | ----------------------------------------------------------------- |
+| **Lead Maintainer** | Reinasboo | [@Reinasboo](https://github.com/Reinasboo)                        |
+| **Security Lead**   | Reinasboo | [security@agentic-wallet.dev](mailto:security@agentic-wallet.dev) |
 
 ---
 
@@ -58,11 +58,11 @@ following structured processes defined in [CONTRIBUTING.md](../CONTRIBUTING.md).
 
 ## Release Cadence
 
-| Release Type | Frequency | Trigger |
-|---|---|---|
-| **Patch** (v1.0.x) | As needed | Bug fixes and security patches |
-| **Minor** (v1.x.0) | Quarterly | Significant features or improvements |
-| **Major** (vx.0.0) | Yearly or as needed | Breaking changes |
+| Release Type       | Frequency           | Trigger                              |
+| ------------------ | ------------------- | ------------------------------------ |
+| **Patch** (v1.0.x) | As needed           | Bug fixes and security patches       |
+| **Minor** (v1.x.0) | Quarterly           | Significant features or improvements |
+| **Major** (vx.0.0) | Yearly or as needed | Breaking changes                     |
 
 ---
 

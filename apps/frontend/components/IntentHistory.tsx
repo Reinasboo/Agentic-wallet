@@ -8,14 +8,7 @@
  */
 
 import { motion } from 'framer-motion';
-import {
-  CheckCircle2,
-  XCircle,
-  ArrowUpRight,
-  Cloud,
-  Wallet,
-  Zap,
-} from 'lucide-react';
+import { CheckCircle2, XCircle, ArrowUpRight, Cloud, Wallet, Zap } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { IntentHistoryRecord, SupportedIntentType } from '@/lib/types';
 
@@ -83,16 +76,19 @@ function IntentRow({ record }: IntentRowProps) {
       className="flex items-center gap-4 py-3 border-b border-border-light last:border-b-0"
     >
       {/* Intent type icon */}
-      <div className={cn('w-8 h-8 rounded-lg flex items-center justify-center bg-surface-hover', config.color)}>
+      <div
+        className={cn(
+          'w-8 h-8 rounded-lg flex items-center justify-center bg-surface-hover',
+          config.color
+        )}
+      >
         <Icon className="w-4 h-4" />
       </div>
 
       {/* Details */}
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2">
-          <span className="text-body font-medium text-text-primary">
-            {label}
-          </span>
+          <span className="text-body font-medium text-text-primary">{label}</span>
           {record.type === 'AUTONOMOUS' && (
             <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-500/10 text-rose-400 font-semibold uppercase">
               autonomous
@@ -101,7 +97,7 @@ function IntentRow({ record }: IntentRowProps) {
           <span
             className={cn(
               'inline-flex items-center gap-1 text-caption font-medium',
-              isExecuted ? 'text-status-success' : 'text-status-error',
+              isExecuted ? 'text-status-success' : 'text-status-error'
             )}
           >
             {isExecuted ? (
@@ -142,9 +138,7 @@ export function IntentHistory({ intents, maxItems = 50 }: IntentHistoryProps) {
 
   if (displayed.length === 0) {
     return (
-      <div className="text-center py-8 text-text-muted text-body">
-        No intents recorded yet.
-      </div>
+      <div className="text-center py-8 text-text-muted text-body">No intents recorded yet.</div>
     );
   }
 

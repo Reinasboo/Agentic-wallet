@@ -1,6 +1,6 @@
 /**
  * Solana RPC Client
- * 
+ *
  * Handles all Solana blockchain interactions:
  * - Connection management
  * - Balance queries
@@ -18,11 +18,7 @@ import {
   Commitment,
   SendOptions,
 } from '@solana/web3.js';
-import {
-  getAssociatedTokenAddress,
-  getAccount,
-  TOKEN_PROGRAM_ID,
-} from '@solana/spl-token';
+import { getAssociatedTokenAddress, getAccount, TOKEN_PROGRAM_ID } from '@solana/spl-token';
 import {
   Result,
   success,
@@ -53,15 +49,15 @@ export class SolanaClient {
 
   constructor() {
     const config = getConfig();
-    
+
     this.connection = new Connection(config.SOLANA_RPC_URL, {
       commitment: 'confirmed',
       confirmTransactionInitialTimeout: config.CONFIRMATION_TIMEOUT_MS,
     });
-    
+
     this.maxRetries = config.MAX_RETRIES;
     this.confirmationTimeout = config.CONFIRMATION_TIMEOUT_MS;
-    
+
     logger.info('Solana client initialized', {
       rpcUrl: config.SOLANA_RPC_URL,
       network: config.SOLANA_NETWORK,
@@ -95,17 +91,17 @@ export class SolanaClient {
   async getBalance(publicKey: PublicKey): Promise<Result<BalanceInfo, Error>> {
     try {
       const lamports = await this.connection.getBalance(publicKey);
-      
+
       const balance: BalanceInfo = {
         sol: lamports / LAMPORTS_PER_SOL,
         lamports: BigInt(lamports),
       };
-      
+
       logger.debug('Balance fetched', {
         publicKey: publicKey.toBase58(),
         sol: balance.sol,
       });
-      
+
       return success(balance);
     } catch (error) {
       logger.error('Failed to fetch balance', {
@@ -121,15 +117,14 @@ export class SolanaClient {
    */
   async getTokenBalances(owner: PublicKey): Promise<Result<TokenBalance[], Error>> {
     try {
-      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(
-        owner,
-        { programId: TOKEN_PROGRAM_ID }
-      );
-      
+      const tokenAccounts = await this.connection.getParsedTokenAccountsByOwner(owner, {
+        programId: TOKEN_PROGRAM_ID,
+      });
+
       const balances: TokenBalance[] = tokenAccounts.value.map((account) => {
         const parsed = account.account.data.parsed;
         const info = parsed.info;
-        
+
         return {
           mint: info.mint,
           amount: BigInt(info.tokenAmount.amount),
@@ -137,12 +132,12 @@ export class SolanaClient {
           uiAmount: info.tokenAmount.uiAmount ?? 0,
         };
       });
-      
+
       logger.debug('Token balances fetched', {
         owner: owner.toBase58(),
         tokenCount: balances.length,
       });
-      
+
       return success(balances);
     } catch (error) {
       logger.error('Failed to fetch token balances', {
@@ -161,35 +156,32 @@ export class SolanaClient {
     amount: number
   ): Promise<Result<TransactionResult, Error>> {
     const config = getConfig();
-    
+
     if (config.SOLANA_NETWORK !== 'devnet') {
       return failure(new Error('Airdrops are only available on devnet'));
     }
-    
+
     // Limit airdrop amount
     const maxAirdrop = 2; // SOL
     if (amount > maxAirdrop) {
       return failure(new Error(`Airdrop amount cannot exceed ${maxAirdrop} SOL`));
     }
-    
+
     try {
       logger.info('Requesting airdrop', {
         publicKey: publicKey.toBase58(),
         amount,
       });
-      
-      const signature = await this.connection.requestAirdrop(
-        publicKey,
-        amount * LAMPORTS_PER_SOL
-      );
-      
+
+      const signature = await this.connection.requestAirdrop(publicKey, amount * LAMPORTS_PER_SOL);
+
       // Wait for confirmation
       const confirmation = await this.confirmTransaction(signature);
-      
+
       if (!confirmation.ok) {
         return failure(confirmation.error);
       }
-      
+
       return success({
         signature,
         status: 'confirmed',
@@ -213,32 +205,29 @@ export class SolanaClient {
     options?: SendOptions
   ): Promise<Result<TransactionResult, Error>> {
     let lastError: Error | null = null;
-    
+
     for (let attempt = 0; attempt <= this.maxRetries; attempt++) {
       try {
         if (attempt > 0) {
           logger.info('Retrying transaction', { attempt });
         }
-        
-        const signature = await this.connection.sendRawTransaction(
-          transaction.serialize(),
-          {
-            skipPreflight: false,
-            preflightCommitment: 'confirmed',
-            ...options,
-          }
-        );
-        
+
+        const signature = await this.connection.sendRawTransaction(transaction.serialize(), {
+          skipPreflight: false,
+          preflightCommitment: 'confirmed',
+          ...options,
+        });
+
         logger.info('Transaction submitted', { signature });
-        
+
         // Wait for confirmation
         const confirmation = await this.confirmTransaction(signature);
-        
+
         if (!confirmation.ok) {
           lastError = confirmation.error;
           continue;
         }
-        
+
         return success({
           signature,
           status: 'confirmed',
@@ -250,12 +239,12 @@ export class SolanaClient {
           attempt,
           error: lastError.message,
         });
-        
+
         // Don't retry certain errors
         if (this.isNonRetryableError(lastError)) {
           break;
         }
-        
+
         // Wait before retry (exponential backoff: 1s, 2s, 4s, 8s...)
         if (attempt < this.maxRetries) {
           const backoffMs = Math.min(1000 * Math.pow(2, attempt), 16_000);
@@ -263,11 +252,11 @@ export class SolanaClient {
         }
       }
     }
-    
+
     logger.error('Transaction failed after all retries', {
       error: lastError?.message,
     });
-    
+
     return failure(lastError ?? new Error('Transaction failed'));
   }
 
@@ -279,7 +268,7 @@ export class SolanaClient {
   ): Promise<Result<{ slot: number }, Error>> {
     try {
       const latestBlockhash = await this.connection.getLatestBlockhash();
-      
+
       const confirmation = await this.connection.confirmTransaction(
         {
           signature,
@@ -288,16 +277,16 @@ export class SolanaClient {
         },
         'confirmed'
       );
-      
+
       if (confirmation.value.err) {
         return failure(new Error(`Transaction failed: ${JSON.stringify(confirmation.value.err)}`));
       }
-      
+
       logger.info('Transaction confirmed', {
         signature,
         slot: confirmation.context.slot,
       });
-      
+
       return success({ slot: confirmation.context.slot });
     } catch (error) {
       return failure(error instanceof Error ? error : new Error(String(error)));
@@ -309,8 +298,12 @@ export class SolanaClient {
    * The overloaded signature preserves backward compatibility.
    */
   async getRecentBlockhash(): Promise<Result<string, Error>>;
-  async getRecentBlockhash(full: true): Promise<Result<{ blockhash: string; lastValidBlockHeight: number }, Error>>;
-  async getRecentBlockhash(full?: true): Promise<Result<string | { blockhash: string; lastValidBlockHeight: number }, Error>> {
+  async getRecentBlockhash(
+    full: true
+  ): Promise<Result<{ blockhash: string; lastValidBlockHeight: number }, Error>>;
+  async getRecentBlockhash(
+    full?: true
+  ): Promise<Result<string | { blockhash: string; lastValidBlockHeight: number }, Error>> {
     try {
       const { blockhash, lastValidBlockHeight } = await this.connection.getLatestBlockhash();
       if (full) {
@@ -357,7 +350,9 @@ export class SolanaClient {
    * Simulate a transaction before sending to catch errors before paying fees.
    */
   async simulateTransaction(
-    transaction: import('@solana/web3.js').Transaction | import('@solana/web3.js').VersionedTransaction,
+    transaction:
+      | import('@solana/web3.js').Transaction
+      | import('@solana/web3.js').VersionedTransaction
   ): Promise<Result<true, Error>> {
     try {
       let result;
@@ -386,7 +381,7 @@ export class SolanaClient {
       'invalid blockhash',
       'transaction too large',
     ];
-    
+
     const message = error.message.toLowerCase();
     return nonRetryablePatterns.some((pattern) => message.includes(pattern));
   }

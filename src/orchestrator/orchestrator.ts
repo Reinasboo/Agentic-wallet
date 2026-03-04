@@ -1,12 +1,12 @@
 /**
  * Orchestrator
- * 
+ *
  * The central coordination layer that:
  * - Binds agents to wallets
  * - Manages agent lifecycle
  * - Executes agent intents
  * - Emits system events
- * 
+ *
  * This is the bridge between agents (decision makers) and wallets (executors).
  */
 
@@ -26,7 +26,12 @@ import {
 import { getConfig } from '../utils/config.js';
 import { createLogger } from '../utils/logger.js';
 import { getWalletManager, WalletManager } from '../wallet/index.js';
-import { getSolanaClient, buildSolTransfer, buildTokenTransfer, SolanaClient } from '../rpc/index.js';
+import {
+  getSolanaClient,
+  buildSolTransfer,
+  buildTokenTransfer,
+  SolanaClient,
+} from '../rpc/index.js';
 import { BaseAgent, AgentContext, createAgent } from '../agent/index.js';
 import { AccumulatorAgent } from '../agent/accumulator-agent.js';
 import { DistributorAgent } from '../agent/distributor-agent.js';
@@ -346,18 +351,22 @@ export class Orchestrator {
     });
 
     // Validate intent against policy
-    const validationResult = this.walletManager.validateIntent(
-      walletId,
-      intent,
-      currentBalance
-    );
+    const validationResult = this.walletManager.validateIntent(walletId, intent, currentBalance);
 
     if (!validationResult.ok) {
       logger.warn('Intent rejected by policy', {
         agentId: agent.id,
         reason: validationResult.error.message,
       });
-      this.recordIntentHistory(intentId, agent.id, intent, 'rejected', undefined, validationResult.error.message, createdAt);
+      this.recordIntentHistory(
+        intentId,
+        agent.id,
+        intent,
+        'rejected',
+        undefined,
+        validationResult.error.message,
+        createdAt
+      );
       return;
     }
 
@@ -375,17 +384,20 @@ export class Orchestrator {
         break;
 
       case 'transfer_token':
-        await this.executeTokenTransfer(
-          agent,
-          intent.mint,
-          intent.recipient,
-          intent.amount,
-        );
+        await this.executeTokenTransfer(agent, intent.mint, intent.recipient, intent.amount);
         break;
 
       case 'check_balance':
         // Balance is already in context — record as executed
-        this.recordIntentHistory(intentId, agent.id, intent, 'executed', { balance: currentBalance }, undefined, createdAt);
+        this.recordIntentHistory(
+          intentId,
+          agent.id,
+          intent,
+          'executed',
+          { balance: currentBalance },
+          undefined,
+          createdAt
+        );
         return; // early return; no tx to inspect
 
       case 'autonomous':
@@ -404,16 +416,25 @@ export class Orchestrator {
     const lastTx = newTxs.length > 0 ? newTxs[newTxs.length - 1] : undefined;
 
     if (lastTx) {
-      const status = lastTx.status === 'confirmed' ? 'executed' as const : 'rejected' as const;
-      const result = lastTx.status === 'confirmed'
-        ? { signature: lastTx.signature, amount: lastTx.amount, recipient: lastTx.recipient }
-        : undefined;
+      const status = lastTx.status === 'confirmed' ? ('executed' as const) : ('rejected' as const);
+      const result =
+        lastTx.status === 'confirmed'
+          ? { signature: lastTx.signature, amount: lastTx.amount, recipient: lastTx.recipient }
+          : undefined;
       const error = lastTx.status === 'failed' ? lastTx.error : undefined;
       this.recordIntentHistory(intentId, agent.id, intent, status, result, error, createdAt);
     } else {
       // Execution method returned early without creating a transaction
       // (e.g. getPublicKey failure). Still record the intent so it isn't silently dropped.
-      this.recordIntentHistory(intentId, agent.id, intent, 'rejected', undefined, 'Execution failed — no transaction created', createdAt);
+      this.recordIntentHistory(
+        intentId,
+        agent.id,
+        intent,
+        'rejected',
+        undefined,
+        'Execution failed — no transaction created',
+        createdAt
+      );
     }
   }
 
@@ -428,7 +449,7 @@ export class Orchestrator {
     status: 'executed' | 'rejected',
     result?: Record<string, unknown>,
     error?: string,
-    createdAt?: Date,
+    createdAt?: Date
   ): void {
     const mappedType = Orchestrator.INTENT_TYPE_MAP[intent.type] ?? 'QUERY_BALANCE';
     getIntentRouter().recordIntent({
@@ -545,7 +566,16 @@ export class Orchestrator {
     const publicKeyResult = this.walletManager.getPublicKey(walletId);
     if (!publicKeyResult.ok) {
       logger.error('Failed to get public key for transfer', { walletId });
-      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_sol', status: 'failed', amount, recipient, error: publicKeyResult.error.message, createdAt: new Date() });
+      this.transactions.push({
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_sol',
+        status: 'failed',
+        amount,
+        recipient,
+        error: publicKeyResult.error.message,
+        createdAt: new Date(),
+      });
       return;
     }
 
@@ -554,7 +584,16 @@ export class Orchestrator {
       recipientPubkey = new PublicKey(recipient);
     } catch {
       logger.error('Invalid recipient address', { recipient });
-      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_sol', status: 'failed', amount, recipient, error: 'Invalid recipient address', createdAt: new Date() });
+      this.transactions.push({
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_sol',
+        status: 'failed',
+        amount,
+        recipient,
+        error: 'Invalid recipient address',
+        createdAt: new Date(),
+      });
       return;
     }
 
@@ -576,7 +615,7 @@ export class Orchestrator {
       publicKeyResult.value,
       recipientPubkey,
       amount,
-      `AgenticWallet:transfer_sol:${agent.id}`,
+      `AgenticWallet:transfer_sol:${agent.id}`
     );
 
     if (!txResult.ok) {
@@ -641,14 +680,24 @@ export class Orchestrator {
     agent: BaseAgent,
     mint: string,
     recipient: string,
-    amount: number,
+    amount: number
   ): Promise<void> {
     const walletId = agent.getWalletId();
 
     const publicKeyResult = this.walletManager.getPublicKey(walletId);
     if (!publicKeyResult.ok) {
       logger.error('Failed to get public key for token transfer', { walletId });
-      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_spl', status: 'failed', amount, recipient, mint, error: publicKeyResult.error.message, createdAt: new Date() });
+      this.transactions.push({
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_spl',
+        status: 'failed',
+        amount,
+        recipient,
+        mint,
+        error: publicKeyResult.error.message,
+        createdAt: new Date(),
+      });
       return;
     }
 
@@ -659,7 +708,17 @@ export class Orchestrator {
       mintPubkey = new PublicKey(mint);
     } catch {
       logger.error('Invalid address for token transfer', { recipient, mint });
-      this.transactions.push({ id: uuidv4(), walletId, type: 'transfer_spl', status: 'failed', amount, recipient, mint, error: 'Invalid address', createdAt: new Date() });
+      this.transactions.push({
+        id: uuidv4(),
+        walletId,
+        type: 'transfer_spl',
+        status: 'failed',
+        amount,
+        recipient,
+        mint,
+        error: 'Invalid address',
+        createdAt: new Date(),
+      });
       return;
     }
 
@@ -687,7 +746,7 @@ export class Orchestrator {
       recipientPubkey,
       rawAmount,
       decimals,
-      `AgenticWallet:token_transfer:${agent.id}`,
+      `AgenticWallet:token_transfer:${agent.id}`
     );
 
     if (!txResult.ok) {
@@ -754,7 +813,7 @@ export class Orchestrator {
   private async executeAutonomousIntent(
     agent: BaseAgent,
     intent: import('../utils/types.js').AutonomousIntent,
-    currentBalance: number,
+    currentBalance: number
   ): Promise<void> {
     const { action, params } = intent;
 
@@ -870,7 +929,10 @@ export class Orchestrator {
    */
   updateAgentConfig(
     agentId: string,
-    patch: { strategyParams?: Record<string, unknown>; executionSettings?: Partial<import('../utils/types.js').ExecutionSettings> },
+    patch: {
+      strategyParams?: Record<string, unknown>;
+      executionSettings?: Partial<import('../utils/types.js').ExecutionSettings>;
+    }
   ): Result<AgentInfo, Error> {
     const managed = this.agents.get(agentId);
     if (!managed) {
@@ -904,7 +966,10 @@ export class Orchestrator {
         managed.intervalId = setInterval(async () => {
           await this.runAgentCycle(agentId);
         }, newSettings.cycleIntervalMs);
-        logger.info('Agent cycle interval updated', { agentId, newInterval: newSettings.cycleIntervalMs });
+        logger.info('Agent cycle interval updated', {
+          agentId,
+          newInterval: newSettings.cycleIntervalMs,
+        });
       }
     }
 
@@ -958,9 +1023,7 @@ export class Orchestrator {
 
     // Calculate total SOL under management (parallelized)
     const balancePromises = Array.from(this.agents.values()).map(async (managed) => {
-      const publicKeyResult = this.walletManager.getPublicKey(
-        managed.agent.getWalletId()
-      );
+      const publicKeyResult = this.walletManager.getPublicKey(managed.agent.getWalletId());
       if (!publicKeyResult.ok) return 0;
       const balanceResult = await this.solanaClient.getBalance(publicKeyResult.value);
       return balanceResult.ok ? balanceResult.value.sol : 0;
@@ -1047,7 +1110,10 @@ export class Orchestrator {
       // Skip if wallet no longer exists
       const pubKeyResult = this.walletManager.getPublicKey(s.walletId);
       if (!pubKeyResult.ok) {
-        logger.warn('Skipping agent restore — wallet missing', { agentId: s.id, walletId: s.walletId });
+        logger.warn('Skipping agent restore — wallet missing', {
+          agentId: s.id,
+          walletId: s.walletId,
+        });
         continue;
       }
 
@@ -1095,7 +1161,10 @@ export class Orchestrator {
     for (const agentId of toStart) {
       const result = this.startAgent(agentId);
       if (!result.ok) {
-        logger.warn('Failed to auto-start restored agent', { agentId, error: result.error.message });
+        logger.warn('Failed to auto-start restored agent', {
+          agentId,
+          error: result.error.message,
+        });
       }
     }
   }

@@ -26,20 +26,13 @@ import {
   Trash2,
 } from 'lucide-react';
 import { useState } from 'react';
-import {
-  Sidebar,
-  Header,
-  IntentHistory,
-} from '@/components';
+import { Sidebar, Header, IntentHistory } from '@/components';
 import { useExternalAgent } from '@/lib/hooks';
 import * as api from '@/lib/api';
 import { cn } from '@/lib/utils';
 import type { ExternalAgentStatus } from '@/lib/types';
 
-const statusConfig: Record<
-  ExternalAgentStatus,
-  { label: string; color: string }
-> = {
+const statusConfig: Record<ExternalAgentStatus, { label: string; color: string }> = {
   registered: { label: 'Registered', color: 'text-blue-500 bg-blue-500/10' },
   active: { label: 'Connected', color: 'text-status-success bg-status-success/10' },
   inactive: { label: 'Inactive', color: 'text-text-muted bg-surface-hover' },
@@ -99,7 +92,7 @@ export default function ConnectedAgentDetailPage() {
   };
 
   const agent = data?.agent;
-  const statusCfg = agent ? statusConfig[agent.status] ?? statusConfig.inactive : null;
+  const statusCfg = agent ? (statusConfig[agent.status] ?? statusConfig.inactive) : null;
   const TypeIcon = agent?.type === 'remote' ? Globe : Monitor;
 
   return (
@@ -114,10 +107,7 @@ export default function ConnectedAgentDetailPage() {
         <Sidebar />
 
         <div className="flex-1 ml-60">
-          <Header
-            title={agent?.name ?? 'Loading…'}
-            subtitle="Connected agent detail"
-          />
+          <Header title={agent?.name ?? 'Loading…'} subtitle="Connected agent detail" />
 
           <main className="px-8 lg:px-12 pb-12 space-y-8">
             {/* Back nav */}
@@ -129,13 +119,9 @@ export default function ConnectedAgentDetailPage() {
               Back to connected agents
             </Link>
 
-            {loading && (
-              <div className="text-center py-12 text-text-muted">Loading…</div>
-            )}
+            {loading && <div className="text-center py-12 text-text-muted">Loading…</div>}
 
-            {error && (
-              <div className="text-center py-12 text-status-error">{error}</div>
-            )}
+            {error && <div className="text-center py-12 text-status-error">{error}</div>}
 
             {agent && statusCfg && (
               <>
@@ -153,7 +139,9 @@ export default function ConnectedAgentDetailPage() {
                       <h2 className="text-heading-md text-text-primary">{agent.name}</h2>
                       <div className="flex items-center gap-2 mt-0.5">
                         <TypeIcon className="w-3.5 h-3.5 text-text-muted" />
-                        <span className="text-caption text-text-muted capitalize">{agent.type}</span>
+                        <span className="text-caption text-text-muted capitalize">
+                          {agent.type}
+                        </span>
                         {agent.endpoint && (
                           <span className="text-caption text-text-muted font-mono ml-2">
                             {agent.endpoint}
@@ -164,7 +152,7 @@ export default function ConnectedAgentDetailPage() {
                     <span
                       className={cn(
                         'inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-caption font-medium',
-                        statusCfg.color,
+                        statusCfg.color
                       )}
                     >
                       {agent.status === 'active' ? (
@@ -182,7 +170,9 @@ export default function ConnectedAgentDetailPage() {
                   <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                     {/* Wallet */}
                     <div className="bg-surface-hover rounded-xl p-4">
-                      <span className="text-caption text-text-muted block mb-1">Wallet Address</span>
+                      <span className="text-caption text-text-muted block mb-1">
+                        Wallet Address
+                      </span>
                       <div className="flex items-center gap-1.5">
                         <span className="text-body font-mono text-text-primary truncate">
                           {agent.walletPublicKey
@@ -203,7 +193,9 @@ export default function ConnectedAgentDetailPage() {
 
                     {/* Supported intents */}
                     <div className="bg-surface-hover rounded-xl p-4">
-                      <span className="text-caption text-text-muted block mb-1">Supported Intents</span>
+                      <span className="text-caption text-text-muted block mb-1">
+                        Supported Intents
+                      </span>
                       <div className="flex flex-wrap gap-1 mt-0.5">
                         {agent.supportedIntents.map((i) => (
                           <span
@@ -259,7 +251,9 @@ export default function ConnectedAgentDetailPage() {
                         </button>
                       ) : (
                         <div className="flex items-center gap-2">
-                          <span className="text-caption text-status-error">Permanently revoke this agent?</span>
+                          <span className="text-caption text-status-error">
+                            Permanently revoke this agent?
+                          </span>
                           <button
                             onClick={handleRevoke}
                             disabled={actionLoading}

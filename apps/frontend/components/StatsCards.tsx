@@ -2,7 +2,7 @@
 
 /**
  * Stats Cards Component
- * 
+ *
  * Clean, calm statistics display.
  * Numbers at a glance without visual noise.
  */
@@ -55,10 +55,10 @@ export function StatsCards() {
             key={card.title}
             initial={{ opacity: 0, y: 8 }}
             animate={{ opacity: 1, y: 0 }}
-            transition={{ 
+            transition={{
               delay: index * 0.05,
               duration: 0.3,
-              ease: [0.16, 1, 0.3, 1]
+              ease: [0.16, 1, 0.3, 1],
             }}
             className="card p-5"
           >
@@ -67,9 +67,7 @@ export function StatsCards() {
               <div className="icon-container-sm bg-background-tertiary">
                 <Icon className="w-4 h-4 text-text-tertiary" />
               </div>
-              <span className="text-caption text-text-tertiary font-medium">
-                {card.title}
-              </span>
+              <span className="text-caption text-text-tertiary font-medium">{card.title}</span>
             </div>
 
             {/* Value */}
@@ -78,32 +76,30 @@ export function StatsCards() {
                 <div className="h-8 w-24 bg-background-secondary rounded-md animate-pulse" />
               ) : card.isStatus ? (
                 <div className="flex items-center gap-2">
-                  <span className={cn(
-                    'w-2 h-2 rounded-full',
-                    card.value === 'healthy' ? 'bg-status-success' : 'bg-status-warning'
-                  )} />
-                  <span className="text-heading-sm text-text-primary capitalize">
-                    {card.value}
-                  </span>
+                  <span
+                    className={cn(
+                      'w-2 h-2 rounded-full',
+                      card.value === 'healthy' ? 'bg-status-success' : 'bg-status-warning'
+                    )}
+                  />
+                  <span className="text-heading-sm text-text-primary capitalize">{card.value}</span>
                 </div>
               ) : (
                 <div className="flex items-baseline gap-1.5">
                   <span className="text-heading text-text-primary">
-                    {card.format ? card.format(card.value as number, card.total as number) : card.value}
+                    {card.format
+                      ? card.format(card.value as number, card.total as number)
+                      : card.value}
                   </span>
                   {card.suffix && (
-                    <span className="text-body-sm text-text-tertiary">
-                      {card.suffix}
-                    </span>
+                    <span className="text-body-sm text-text-tertiary">{card.suffix}</span>
                   )}
                 </div>
               )}
-              
+
               {/* Subtle subtext */}
               {card.network && !loading && (
-                <span className="text-micro text-text-muted capitalize">
-                  {card.network}
-                </span>
+                <span className="text-micro text-text-muted capitalize">{card.network}</span>
               )}
             </div>
           </motion.div>

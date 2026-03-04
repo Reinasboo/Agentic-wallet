@@ -1,9 +1,9 @@
 /**
  * Distributor Agent
- * 
+ *
  * Strategy: Automatically distributes SOL to a list of recipients.
  * Cycles through recipients and sends small amounts periodically.
- * 
+ *
  * Use case: Automated distribution, rewards, or testing transfers.
  */
 
@@ -14,8 +14,8 @@ import { ESTIMATED_SOL_TRANSFER_FEE } from '../utils/config.js';
 const logger = createLogger('DISTRIBUTOR');
 
 export interface DistributorParams {
-  readonly recipients: string[];        // List of wallet addresses
-  readonly amountPerTransfer: number;   // SOL per transfer
+  readonly recipients: string[]; // List of wallet addresses
+  readonly amountPerTransfer: number; // SOL per transfer
   readonly minBalanceToDistribute: number; // SOL - don't distribute below this
   readonly maxTransfersPerDay: number;
   readonly distributionProbability: number; // 0-1, chance to distribute each cycle
@@ -74,7 +74,8 @@ export class DistributorAgent extends BaseAgent {
     }
 
     // Check minimum balance
-    const balanceAfterTransfer = context.balance.sol - this.params.amountPerTransfer - ESTIMATED_SOL_TRANSFER_FEE;
+    const balanceAfterTransfer =
+      context.balance.sol - this.params.amountPerTransfer - ESTIMATED_SOL_TRANSFER_FEE;
     if (balanceAfterTransfer < this.params.minBalanceToDistribute) {
       return {
         shouldAct: false,
@@ -98,7 +99,7 @@ export class DistributorAgent extends BaseAgent {
         reasoning: 'No valid recipient at current index',
       };
     }
-    
+
     // Don't send to self
     if (recipient === this.walletPublicKey) {
       this.currentRecipientIndex = (this.currentRecipientIndex + 1) % this.params.recipients.length;
@@ -144,7 +145,7 @@ export class DistributorAgent extends BaseAgent {
   removeRecipient(address: string): void {
     this.params = {
       ...this.params,
-      recipients: this.params.recipients.filter(r => r !== address),
+      recipients: this.params.recipients.filter((r) => r !== address),
     };
   }
 

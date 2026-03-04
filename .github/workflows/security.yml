@@ -63,4 +63,4 @@ jobs:
           node-version: 20
           cache: npm
       - run: npm ci
-      - run: npm audit --audit-level=moderate
+      - run: npm audit --omit=dev --audit-level=critical

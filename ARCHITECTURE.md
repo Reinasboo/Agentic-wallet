@@ -20,8 +20,8 @@ The Agent Layer contains the autonomous logic that determines what actions to ta
 
 ```typescript
 interface AgentContext {
-  walletPublicKey: string;    // Public only
-  balance: BalanceInfo;        // Read-only
+  walletPublicKey: string; // Public only
+  balance: BalanceInfo; // Read-only
   tokenBalances: TokenBalance[];
   recentTransactions: string[];
 }
@@ -34,6 +34,7 @@ interface AgentDecision {
 ```
 
 **Key Properties**:
+
 - Agents **only** know their `cycleCount` (total cycles) and `actionCount` (cycles where they acted)
 - `recordAction(acted: boolean)` updates both counters each cycle
 - No cryptographic capabilities
@@ -45,16 +46,17 @@ interface AgentDecision {
 
 **Built-in Strategy Implementations**:
 
-| Strategy | Class | Purpose |
-|----------|-------|---------|
-| `accumulator` | `AccumulatorAgent` | Maintain balance via airdrops |
-| `distributor` | `DistributorAgent` | Distribute SOL to recipients |
-| `balance_guard` | `BalanceGuardAgent` | Emergency-only airdrop when critically low |
-| `scheduled_payer` | `ScheduledPayerAgent` | Recurring single-recipient payments |
+| Strategy          | Class                 | Purpose                                    |
+| ----------------- | --------------------- | ------------------------------------------ |
+| `accumulator`     | `AccumulatorAgent`    | Maintain balance via airdrops              |
+| `distributor`     | `DistributorAgent`    | Distribute SOL to recipients               |
+| `balance_guard`   | `BalanceGuardAgent`   | Emergency-only airdrop when critically low |
+| `scheduled_payer` | `ScheduledPayerAgent` | Recurring single-recipient payments        |
 
 Custom strategies can be registered at runtime via the Strategy Registry.
 
 **Agent Lifecycle**:
+
 ```
 IDLE → THINKING → (decision) → EXECUTING → IDLE
                       ↓
@@ -66,6 +68,7 @@ IDLE → THINKING → (decision) → EXECUTING → IDLE
 **Responsibility**: Secure key management and transaction signing
 
 The Wallet Layer is the security boundary for all cryptographic operations. Private keys are:
+
 - Generated using Solana's secure Keypair
 - Encrypted immediately with AES-256-GCM
 - Stored only in encrypted form
@@ -74,7 +77,7 @@ The Wallet Layer is the security boundary for all cryptographic operations. Priv
 ```typescript
 // Public interface (exposed)
 interface WalletManager {
-  createWallet(): WalletInfo;           // Returns public info only
+  createWallet(): WalletInfo; // Returns public info only
   getPublicKey(id: string): PublicKey;
   signTransaction(id: string, tx: Transaction): Transaction;
   validateIntent(id: string, intent: Intent): boolean;
@@ -82,11 +85,12 @@ interface WalletManager {
 
 // Internal (never exposed)
 interface InternalWallet {
-  encryptedSecretKey: string;  // Never leaves this layer
+  encryptedSecretKey: string; // Never leaves this layer
 }
 ```
 
 **Key Management**:
+
 ```
 Generate → Encrypt → Store (memory + disk) → (signing request) → Decrypt → Sign → Discard
                                                             ↓
@@ -103,6 +107,7 @@ Wallets and policies are persisted to `data/wallets.json` on every mutation
 **Responsibility**: Solana blockchain interaction
 
 The RPC Layer handles all communication with Solana:
+
 - Connection management
 - Transaction building (unsigned)
 - **Transaction simulation** before every send (pre-flight error detection, no fee burned)
@@ -126,6 +131,7 @@ interface SolanaClient {
 ```
 
 **Transaction Flow**:
+
 ```
 Build Transaction → Sign (Wallet Layer) → Simulate → Submit → Confirm
        ↓                    ↓                  ↓          ↓
@@ -144,10 +150,10 @@ The Orchestrator binds agents to wallets and manages the execution loop:
 async function runAgentCycle(agentId: string) {
   // 1. Build read-only context
   const context = await buildAgentContext(agent);
-  
+
   // 2. Let agent think
   const decision = await agent.think(context);
-  
+
   // 3. Validate intent against policy
   if (decision.shouldAct && decision.intent) {
     const valid = walletManager.validateIntent(
@@ -155,25 +161,26 @@ async function runAgentCycle(agentId: string) {
       decision.intent,
       context.balance.sol
     );
-    
+
     // 3. Execute if valid
     if (valid) {
       await executeIntent(agent, decision.intent);
     }
   }
-  
+
   // 5. Record cycle/action counters (cycleCount, actionCount)
   agent.recordAction(decision.shouldAct);
-  
+
   // 6. Record intent to global history (IntentRouter)
   recordIntentHistory(agent, decision);
-  
+
   // 7. Emit events for frontend
   eventBus.emit(actionEvent);
 }
 ```
 
 **Multi-Agent Support**:
+
 ```
 Orchestrator
     ├── Agent 1 (Accumulator)      ──► Wallet 1  (cycle: 30s)
@@ -226,19 +233,20 @@ Frontend Capabilities:
 
 **Pages**:
 
-| Route | Purpose |
-|-------|---------|
-| `/` | Dashboard overview with stats |
-| `/agents` | Fleet list with create button |
-| `/agents/:id` | Agent detail + settings panel |
-| `/strategies` | Strategy browser (marketplace feel) |
-| `/connected-agents` | BYOA agent list |
-| `/connected-agents/:id` | BYOA agent detail + management |
-| `/byoa-register` | Register a new external agent |
-| `/intent-history` | Global intent history |
-| `/transactions` | Transaction list |
+| Route                   | Purpose                             |
+| ----------------------- | ----------------------------------- |
+| `/`                     | Dashboard overview with stats       |
+| `/agents`               | Fleet list with create button       |
+| `/agents/:id`           | Agent detail + settings panel       |
+| `/strategies`           | Strategy browser (marketplace feel) |
+| `/connected-agents`     | BYOA agent list                     |
+| `/connected-agents/:id` | BYOA agent detail + management      |
+| `/byoa-register`        | Register a new external agent       |
+| `/intent-history`       | Global intent history               |
+| `/transactions`         | Transaction list                    |
 
 **Data Flow**:
+
 ```
 Backend → REST API → Frontend (polling)
        → WebSocket → Frontend (real-time)
@@ -274,14 +282,15 @@ External Agent                              Platform
 
 **Components**:
 
-| File | Purpose |
-|------|---------|
-| `agentRegistry.ts` | Registration, auth tokens, agent lifecycle |
-| `walletBinder.ts` | 1:1 wallet creation and binding |
-| `intentRouter.ts` | Intent validation, rate limiting, execution dispatch, intent history |
-| `agentAdapter.ts` | Communication with local/remote agents |
+| File               | Purpose                                                              |
+| ------------------ | -------------------------------------------------------------------- |
+| `agentRegistry.ts` | Registration, auth tokens, agent lifecycle                           |
+| `walletBinder.ts`  | 1:1 wallet creation and binding                                      |
+| `intentRouter.ts`  | Intent validation, rate limiting, execution dispatch, intent history |
+| `agentAdapter.ts`  | Communication with local/remote agents                               |
 
 **Key Properties**:
+
 - External agents never receive private keys
 - Built-in agent intents are validated against the policy engine
 - BYOA agents have **full autonomy** — no policy restrictions, no program allowlists
@@ -299,20 +308,21 @@ metadata used by both backend validation and frontend UI rendering.
 
 ```typescript
 interface StrategyDefinition {
-  name: string;                    // e.g. 'accumulator'
-  label: string;                   // e.g. 'Accumulator'
+  name: string; // e.g. 'accumulator'
+  label: string; // e.g. 'Accumulator'
   description: string;
-  supportedIntents: string[];      // e.g. ['airdrop', 'check_balance']
-  paramSchema: ZodObject<any>;     // Zod schema for validation
+  supportedIntents: string[]; // e.g. ['airdrop', 'check_balance']
+  paramSchema: ZodObject<any>; // Zod schema for validation
   defaultParams: Record<string, unknown>;
   fields: StrategyFieldDescriptor[];
   builtIn: boolean;
-  icon: string;                    // Lucide icon name
+  icon: string; // Lucide icon name
   category: 'income' | 'distribution' | 'trading' | 'utility' | 'custom';
 }
 ```
 
 **Key Properties**:
+
 - Strategies self-register via `registry.register(definition)`
 - The `AgentFactory` validates params through the registry before creating agents
 - The orchestrator's `updateAgentConfig()` re-validates params through the registry
@@ -337,11 +347,11 @@ interface StrategyFieldDescriptor {
 
 The system interacts with three deployed Solana programs, demonstrating real dApp/protocol interaction beyond basic account operations:
 
-| Program | ID | Usage |
-|---------|----|-------|
-| **SystemProgram** | `11111111111111111111111111111111` | Native SOL transfers (`transfer_sol` intents) |
+| Program                 | ID                                            | Usage                                                                  |
+| ----------------------- | --------------------------------------------- | ---------------------------------------------------------------------- |
+| **SystemProgram**       | `11111111111111111111111111111111`            | Native SOL transfers (`transfer_sol` intents)                          |
 | **Token Program (SPL)** | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | SPL token transfers (`transfer_token` intents) via `@solana/spl-token` |
-| **Memo Program v2** | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | On-chain memos attached to every SOL and SPL token transfer |
+| **Memo Program v2**     | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | On-chain memos attached to every SOL and SPL token transfer            |
 
 All three programs are invoked through the RPC Layer's `transaction-builder.ts`, which constructs multi-instruction transactions (e.g., a token transfer + memo instruction in a single atomic transaction). The Wallet Layer signs the composed transaction, and the RPC Layer submits it.
 
@@ -350,23 +360,27 @@ All three programs are invoked through the RPC Layer's `transaction-builder.ts`,
 Intents are the bridge between agents (decision makers) and wallets (executors):
 
 ```typescript
-type Intent = 
+type Intent =
   | { type: 'airdrop'; amount: number }
   | { type: 'transfer_sol'; recipient: string; amount: number }
   | { type: 'transfer_token'; mint: string; recipient: string; amount: number }
   | { type: 'check_balance' }
-  | { type: 'autonomous'; action: 'airdrop' | 'transfer_sol' | 'transfer_token' | 'query_balance'; params: Record<string, unknown> };
+  | {
+      type: 'autonomous';
+      action: 'airdrop' | 'transfer_sol' | 'transfer_token' | 'query_balance';
+      params: Record<string, unknown>;
+    };
 ```
 
 **Intent Types**:
 
-| Intent | Description | Policy Validated |
-|--------|-------------|------------------|
-| `airdrop` | Request devnet SOL | Yes |
-| `transfer_sol` | Send SOL | Yes |
-| `transfer_token` | Send SPL tokens | Yes |
-| `check_balance` | Query balance | N/A |
-| `autonomous` | Unrestricted agent action | **No** — bypasses policy engine |
+| Intent           | Description               | Policy Validated                |
+| ---------------- | ------------------------- | ------------------------------- |
+| `airdrop`        | Request devnet SOL        | Yes                             |
+| `transfer_sol`   | Send SOL                  | Yes                             |
+| `transfer_token` | Send SPL tokens           | Yes                             |
+| `check_balance`  | Query balance             | N/A                             |
+| `autonomous`     | Unrestricted agent action | **No** — bypasses policy engine |
 
 The `autonomous` intent type allows agents to execute any supported action
 without policy constraints (no max-amount, no daily-limit, no min-balance
@@ -376,6 +390,7 @@ accepts full responsibility. The wallet-manager returns an immediate
 fully logged to the intent history for auditability.
 
 **Intent Validation** (standard intents):
+
 1. Policy check (max amounts, daily limits)
 2. Balance sufficiency
 3. Recipient validation
@@ -392,21 +407,23 @@ loadState<T>(key: string): T | null        // reads + parses, null on missing/co
 ```
 
 **Key Properties**:
+
 - Synchronous reads/writes (startup is blocking, mutations are rare)
 - Errors are logged but never thrown (fail-open for reads, fail-safe for writes)
 - `data/` directory is auto-created and gitignored
 
 **Persisted Files**:
 
-| File | Layer | Written after |
-|------|-------|---------------|
-| `data/wallets.json` | WalletManager | create/delete wallet, update policy |
-| `data/agents.json` | Orchestrator | create/start/stop agent, update config |
-| `data/byoa-agents.json` | AgentRegistry | register, bind, activate/deactivate/revoke, rotate token |
-| `data/byoa-binder.json` | WalletBinder | bind new wallet |
-| `data/transactions.json` | Orchestrator | airdrop, transfer, token transfer |
+| File                     | Layer         | Written after                                            |
+| ------------------------ | ------------- | -------------------------------------------------------- |
+| `data/wallets.json`      | WalletManager | create/delete wallet, update policy                      |
+| `data/agents.json`       | Orchestrator  | create/start/stop agent, update config                   |
+| `data/byoa-agents.json`  | AgentRegistry | register, bind, activate/deactivate/revoke, rotate token |
+| `data/byoa-binder.json`  | WalletBinder  | bind new wallet                                          |
+| `data/transactions.json` | Orchestrator  | airdrop, transfer, token transfer                        |
 
 **Startup Restore Order**:
+
 1. `WalletManager` constructor → loads wallets + policies
 2. `AgentRegistry` constructor → loads BYOA records, rebuilds `tokenIndex`
 3. `WalletBinder` constructor → loads wallet→agent map
@@ -418,8 +435,8 @@ Pre-decision balance checks use centralized constants from `src/utils/config.ts`
 rather than scattered magic numbers:
 
 ```typescript
-ESTIMATED_SOL_TRANSFER_FEE   = 0.00001  // SOL — single-signature headroom
-ESTIMATED_TOKEN_TRANSFER_FEE = 0.01     // SOL — ATA creation + priority headroom
+ESTIMATED_SOL_TRANSFER_FEE = 0.00001; // SOL — single-signature headroom
+ESTIMATED_TOKEN_TRANSFER_FEE = 0.01; // SOL — ATA creation + priority headroom
 ```
 
 Actual on-chain fees are verified before submission via `simulateTransaction()`.
@@ -462,7 +479,7 @@ Actual on-chain fees are verified before submission via `simulateTransaction()`.
 Events flow through a central EventBus for real-time updates:
 
 ```typescript
-type SystemEvent = 
+type SystemEvent =
   | AgentCreatedEvent
   | AgentStatusChangedEvent
   | AgentActionEvent
@@ -472,6 +489,7 @@ type SystemEvent =
 ```
 
 Events are:
+
 - Stored in memory (last 1000)
 - Broadcast via WebSocket
 - Available via REST API
@@ -483,7 +501,7 @@ The system is configured via environment variables with validation:
 ```typescript
 const ConfigSchema = z.object({
   SOLANA_RPC_URL: z.string().url(),
-  SOLANA_NETWORK: z.enum(['devnet', 'testnet']),  // mainnet blocked
+  SOLANA_NETWORK: z.enum(['devnet', 'testnet']), // mainnet blocked
   KEY_ENCRYPTION_SECRET: z.string().min(16),
   MAX_AGENTS: z.number().positive(),
   AGENT_LOOP_INTERVAL_MS: z.number().positive(),
@@ -493,11 +511,13 @@ const ConfigSchema = z.object({
 ## Scaling Considerations
 
 **Current Design**:
+
 - Single-process, file-based persistence (`data/*.json`)
 - Suitable for development and small deployments
 - All state survives restarts (wallets, agents, BYOA registrations)
 
 **Production Path**:
+
 1. ~~Add persistent storage~~ ✔ (file-based JSON persistence implemented)
 2. ~~Implement agent state persistence~~ ✔ (agents restore with original IDs, auto-start)
 3. Migrate to encrypted database (e.g., SQLite + SQLCipher or PostgreSQL) for concurrent access
@@ -510,9 +530,7 @@ const ConfigSchema = z.object({
 Each layer handles errors appropriately:
 
 ```typescript
-type Result<T, E = Error> = 
-  | { ok: true; value: T }
-  | { ok: false; error: E };
+type Result<T, E = Error> = { ok: true; value: T } | { ok: false; error: E };
 ```
 
 - **Agent Layer**: Errors → agent status = 'error'

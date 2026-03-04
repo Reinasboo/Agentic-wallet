@@ -187,28 +187,169 @@ export const ScheduledPayerStrategyDef: StrategyDefinition = {
 
 const strategyFieldDescriptors: Record<string, StrategyFieldDescriptor[]> = {
   accumulator: [
-    { key: 'targetBalance', label: 'Target Balance', type: 'number', description: 'SOL balance to maintain', required: false, default: 2.0, min: 0.1, max: 100 },
-    { key: 'minBalance', label: 'Min Balance', type: 'number', description: 'Request airdrop below this', required: false, default: 0.5, min: 0.01, max: 50 },
-    { key: 'airdropAmount', label: 'Airdrop Amount', type: 'number', description: 'SOL per airdrop request', required: false, default: 1.0, min: 0.1, max: 2 },
-    { key: 'maxAirdropsPerDay', label: 'Max Airdrops / Day', type: 'number', description: 'Daily airdrop limit', required: false, default: 5, min: 1, max: 50 },
+    {
+      key: 'targetBalance',
+      label: 'Target Balance',
+      type: 'number',
+      description: 'SOL balance to maintain',
+      required: false,
+      default: 2.0,
+      min: 0.1,
+      max: 100,
+    },
+    {
+      key: 'minBalance',
+      label: 'Min Balance',
+      type: 'number',
+      description: 'Request airdrop below this',
+      required: false,
+      default: 0.5,
+      min: 0.01,
+      max: 50,
+    },
+    {
+      key: 'airdropAmount',
+      label: 'Airdrop Amount',
+      type: 'number',
+      description: 'SOL per airdrop request',
+      required: false,
+      default: 1.0,
+      min: 0.1,
+      max: 2,
+    },
+    {
+      key: 'maxAirdropsPerDay',
+      label: 'Max Airdrops / Day',
+      type: 'number',
+      description: 'Daily airdrop limit',
+      required: false,
+      default: 5,
+      min: 1,
+      max: 50,
+    },
   ],
   distributor: [
-    { key: 'recipients', label: 'Recipients', type: 'string[]', description: 'Wallet addresses to distribute to', required: false, default: [] },
-    { key: 'amountPerTransfer', label: 'Amount per Transfer', type: 'number', description: 'SOL per transfer', required: false, default: 0.01, min: 0.001, max: 1.0 },
-    { key: 'minBalanceToDistribute', label: 'Min Balance to Distribute', type: 'number', description: 'Don\'t distribute below this balance', required: false, default: 0.1, min: 0.01, max: 10 },
-    { key: 'maxTransfersPerDay', label: 'Max Transfers / Day', type: 'number', description: 'Daily transfer limit', required: false, default: 10, min: 1, max: 1000 },
-    { key: 'distributionProbability', label: 'Distribution Probability', type: 'number', description: 'Chance to distribute each cycle (0-1)', required: false, default: 0.5, min: 0, max: 1 },
+    {
+      key: 'recipients',
+      label: 'Recipients',
+      type: 'string[]',
+      description: 'Wallet addresses to distribute to',
+      required: false,
+      default: [],
+    },
+    {
+      key: 'amountPerTransfer',
+      label: 'Amount per Transfer',
+      type: 'number',
+      description: 'SOL per transfer',
+      required: false,
+      default: 0.01,
+      min: 0.001,
+      max: 1.0,
+    },
+    {
+      key: 'minBalanceToDistribute',
+      label: 'Min Balance to Distribute',
+      type: 'number',
+      description: "Don't distribute below this balance",
+      required: false,
+      default: 0.1,
+      min: 0.01,
+      max: 10,
+    },
+    {
+      key: 'maxTransfersPerDay',
+      label: 'Max Transfers / Day',
+      type: 'number',
+      description: 'Daily transfer limit',
+      required: false,
+      default: 10,
+      min: 1,
+      max: 1000,
+    },
+    {
+      key: 'distributionProbability',
+      label: 'Distribution Probability',
+      type: 'number',
+      description: 'Chance to distribute each cycle (0-1)',
+      required: false,
+      default: 0.5,
+      min: 0,
+      max: 1,
+    },
   ],
   balance_guard: [
-    { key: 'criticalBalance', label: 'Critical Balance', type: 'number', description: 'Airdrop when balance drops below this', required: false, default: 0.05, min: 0.001, max: 10 },
-    { key: 'airdropAmount', label: 'Airdrop Amount', type: 'number', description: 'SOL per airdrop request', required: false, default: 0.5, min: 0.1, max: 2 },
-    { key: 'maxAirdropsPerDay', label: 'Max Airdrops / Day', type: 'number', description: 'Daily airdrop limit', required: false, default: 3, min: 1, max: 10 },
+    {
+      key: 'criticalBalance',
+      label: 'Critical Balance',
+      type: 'number',
+      description: 'Airdrop when balance drops below this',
+      required: false,
+      default: 0.05,
+      min: 0.001,
+      max: 10,
+    },
+    {
+      key: 'airdropAmount',
+      label: 'Airdrop Amount',
+      type: 'number',
+      description: 'SOL per airdrop request',
+      required: false,
+      default: 0.5,
+      min: 0.1,
+      max: 2,
+    },
+    {
+      key: 'maxAirdropsPerDay',
+      label: 'Max Airdrops / Day',
+      type: 'number',
+      description: 'Daily airdrop limit',
+      required: false,
+      default: 3,
+      min: 1,
+      max: 10,
+    },
   ],
   scheduled_payer: [
-    { key: 'recipient', label: 'Recipient Address', type: 'string', description: 'Wallet address to pay', required: true, default: '', placeholder: 'Solana address...' },
-    { key: 'amount', label: 'Payment Amount', type: 'number', description: 'SOL per payment', required: false, default: 0.01, min: 0.001, max: 1.0 },
-    { key: 'maxPaymentsPerDay', label: 'Max Payments / Day', type: 'number', description: 'Daily payment limit', required: false, default: 5, min: 1, max: 100 },
-    { key: 'minBalanceToSend', label: 'Min Balance to Send', type: 'number', description: 'Don\'t send if balance is below this', required: false, default: 0.1, min: 0.01, max: 10 },
+    {
+      key: 'recipient',
+      label: 'Recipient Address',
+      type: 'string',
+      description: 'Wallet address to pay',
+      required: true,
+      default: '',
+      placeholder: 'Solana address...',
+    },
+    {
+      key: 'amount',
+      label: 'Payment Amount',
+      type: 'number',
+      description: 'SOL per payment',
+      required: false,
+      default: 0.01,
+      min: 0.001,
+      max: 1.0,
+    },
+    {
+      key: 'maxPaymentsPerDay',
+      label: 'Max Payments / Day',
+      type: 'number',
+      description: 'Daily payment limit',
+      required: false,
+      default: 5,
+      min: 1,
+      max: 100,
+    },
+    {
+      key: 'minBalanceToSend',
+      label: 'Min Balance to Send',
+      type: 'number',
+      description: "Don't send if balance is below this",
+      required: false,
+      default: 0.1,
+      min: 0.01,
+      max: 10,
+    },
   ],
 };
 
@@ -259,14 +400,20 @@ class StrategyRegistry {
    * Validate strategy params against the registered schema.
    * Returns the parsed (with defaults applied) params if valid.
    */
-  validateParams(strategyName: string, params: Record<string, unknown>): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
+  validateParams(
+    strategyName: string,
+    params: Record<string, unknown>
+  ): { ok: true; value: Record<string, unknown> } | { ok: false; error: string } {
     const def = this.strategies.get(strategyName);
     if (!def) {
       return { ok: false, error: `Unknown strategy: ${strategyName}` };
     }
     const result = def.paramSchema.safeParse(params);
     if (!result.success) {
-      return { ok: false, error: result.error.issues.map(i => `${i.path.join('.')}: ${i.message}`).join('; ') };
+      return {
+        ok: false,
+        error: result.error.issues.map((i) => `${i.path.join('.')}: ${i.message}`).join('; '),
+      };
     }
     return { ok: true, value: result.data as Record<string, unknown> };
   }
@@ -275,7 +422,7 @@ class StrategyRegistry {
    * Get all strategies as serializable DTOs for API responses.
    */
   getAllDTOs(): StrategyDefinitionDTO[] {
-    return Array.from(this.strategies.values()).map(def => ({
+    return Array.from(this.strategies.values()).map((def) => ({
       name: def.name,
       label: def.label,
       description: def.description,

@@ -11,6 +11,7 @@ The intersection of AI agents and blockchain creates unprecedented possibilities
 **1. Autonomous Economic Actors**
 
 AI agents can participate in economic activities without human intervention. They can:
+
 - Manage treasury operations 24/7
 - Execute complex trading strategies
 - Automate recurring payments
@@ -19,6 +20,7 @@ AI agents can participate in economic activities without human intervention. The
 **2. Reduced Human Error**
 
 Programmatic intent validation catches mistakes before they happen:
+
 - Policy engines prevent transfers exceeding limits
 - Balance checks ensure sufficient funds
 - Recipient validation blocks known bad actors
@@ -26,6 +28,7 @@ Programmatic intent validation catches mistakes before they happen:
 **3. Scalable Operations**
 
 One operator can manage hundreds of agents, each with distinct wallets and strategies:
+
 - Fleet management through orchestration
 - Centralized monitoring via dashboards
 - Consistent policy enforcement across agents
@@ -33,6 +36,7 @@ One operator can manage hundreds of agents, each with distinct wallets and strat
 **4. Composability**
 
 Agents can be combined and orchestrated:
+
 - Accumulator agents fund distributor agents
 - Trading agents hedge exposure for treasury agents
 - Multi-signature schemes across agent fleets
@@ -63,6 +67,7 @@ BYOA:       External Agent → HTTP Intent → Auth → Validation → Wallet �
 
 In a traditional model, an external agent that wants to interact with a wallet
 must either:
+
 - Hold the private key (catastrophic if leaked), or
 - Construct and submit signed transactions via a shared signing service
 
@@ -71,14 +76,14 @@ compromised dependency in the agent can drain the wallet.
 
 **Intent-based control inverts this model:**
 
-| | Transaction Signing | Intent-Based |
-|---|---|---|
-| Key location | Agent holds or accesses key | Platform holds key exclusively |
-| Attack surface | Agent code + all dependencies | Platform audit boundary only |
-| Policy enforcement | Client-side (bypassable) | Server-side (enforced) |
-| Composability | Low (raw bytes) | High (semantic intents) |
-| Rate limiting | Hard to enforce externally | Built-in at router level |
-| Revocation | Must rotate keys | Revoke token instantly |
+|                    | Transaction Signing           | Intent-Based                   |
+| ------------------ | ----------------------------- | ------------------------------ |
+| Key location       | Agent holds or accesses key   | Platform holds key exclusively |
+| Attack surface     | Agent code + all dependencies | Platform audit boundary only   |
+| Policy enforcement | Client-side (bypassable)      | Server-side (enforced)         |
+| Composability      | Low (raw bytes)               | High (semantic intents)        |
+| Rate limiting      | Hard to enforce externally    | Built-in at router level       |
+| Revocation         | Must rotate keys              | Revoke token instantly         |
 
 The intent is a **wish**, not a **command**. The platform decides whether and
 how to fulfill it. This is conceptually similar to OAuth scopes — a token grants
@@ -87,6 +92,7 @@ limited, revocable capabilities rather than full account access.
 ### How This Enables Agent Ecosystems
 
 With BYOA, any developer with an existing AI agent can:
+
 1. Register their agent (one API call)
 2. Receive a wallet address (no key material)
 3. Submit intents (semantic, validated)
@@ -117,14 +123,15 @@ capable of crossing isolation boundaries.
 
 Agents are treated as untrusted code by default:
 
-| Component | Trust Level | Access |
-|-----------|-------------|--------|
-| Agent | Untrusted | Read balance, submit intents |
-| Orchestrator | Trusted | Bind agents to wallets, validate |
-| Wallet Layer | Privileged | Key access, signing |
-| Policy Engine | Trusted | Approve/reject intents |
+| Component     | Trust Level | Access                           |
+| ------------- | ----------- | -------------------------------- |
+| Agent         | Untrusted   | Read balance, submit intents     |
+| Orchestrator  | Trusted     | Bind agents to wallets, validate |
+| Wallet Layer  | Privileged  | Key access, signing              |
+| Policy Engine | Trusted     | Approve/reject intents           |
 
 This model means:
+
 - Compromised agent code cannot steal funds
 - Malicious strategies are blocked by policy
 - Agent bugs cannot exceed configured limits
@@ -138,6 +145,7 @@ The frontend is **read-only by design**:
 3. **Alerting**: Notice anomalies in real-time
 
 But **not**:
+
 - Direct key exposure
 - Manual transaction signing
 - Override agent decisions
@@ -151,6 +159,7 @@ This separation ensures the frontend cannot become an attack vector.
 ### Dark Mode by Default
 
 Crypto operators work around the clock. Dark interfaces:
+
 - Reduce eye strain during extended monitoring
 - Align with trading terminal aesthetics
 - Signal "professional grade" tooling
@@ -227,6 +236,7 @@ const policy: WalletPolicy = {
 ```
 
 This approach:
+
 - Permits innovation within bounds
 - Catches obvious mistakes
 - Allows gradual expansion of limits
@@ -260,6 +270,7 @@ Single Instance (Hardened)
 ```
 
 **Changes required**:
+
 - Database adapter for WalletManager
 - Persistent event storage
 - Health checks and restarts
@@ -278,6 +289,7 @@ Multi-Node Cluster
 ```
 
 **Changes required**:
+
 - Distributed orchestrator coordination
 - Consistent agent assignment
 - Cross-node event propagation
@@ -296,6 +308,7 @@ Full Production Stack
 ```
 
 **Changes required**:
+
 - HSM integration for key storage
 - Audit log compliance
 - DR/BCP procedures
@@ -397,11 +410,13 @@ export default function CustomDashboard() {
 ### "Why not use existing wallet infrastructure?"
 
 Existing wallets are designed for human users. They require:
+
 - Manual transaction approval
 - Browser extension interaction
 - Human-readable interfaces
 
 Agentic wallets are designed for **software users**:
+
 - Programmatic APIs
 - Policy-based automation
 - Machine-friendly protocols
@@ -409,6 +424,7 @@ Agentic wallets are designed for **software users**:
 ### "What prevents a rogue agent from draining funds?"
 
 Multiple safeguards:
+
 1. **No key access**: Agents never see private keys
 2. **Policy validation**: Every intent is checked
 3. **Balance limits**: Minimum balance enforced
@@ -418,6 +434,7 @@ Multiple safeguards:
 ### "Why Solana Devnet?"
 
 Devnet provides:
+
 - **Free SOL** via airdrops for testing
 - **Real blockchain behavior** (not simulation)
 - **No financial risk** (test tokens only)
@@ -428,6 +445,7 @@ Production deployment would target Mainnet with additional safeguards.
 ### "How do agents 'think'?"
 
 Currently, agents follow programmed strategies. The architecture supports:
+
 - Rule-based logic (current)
 - ML model integration (future)
 - LLM-powered reasoning (future)
@@ -437,6 +455,7 @@ The intent system abstracts the decision engine from execution.
 ### "What's the latency overhead?"
 
 Typical flow timing:
+
 - Agent think: 1-10ms
 - Policy validation: <1ms
 - Key decryption: ~50ms
@@ -454,11 +473,11 @@ multiple deployed Solana programs, demonstrating real dApp/protocol composabilit
 
 ### Programs Used
 
-| Program | Address | Purpose |
-|---------|---------|--------|
-| SystemProgram | `11111111111111111111111111111111` | Native SOL transfers |
-| Token Program (SPL) | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | SPL token transfers |
-| Memo Program v2 | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | On-chain memo logging |
+| Program             | Address                                       | Purpose               |
+| ------------------- | --------------------------------------------- | --------------------- |
+| SystemProgram       | `11111111111111111111111111111111`            | Native SOL transfers  |
+| Token Program (SPL) | `TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA` | SPL token transfers   |
+| Memo Program v2     | `MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr` | On-chain memo logging |
 
 ### Memo Program Integration
 
@@ -506,17 +525,17 @@ Agent.createTransferTokenIntent(mint, recipient, amount)
 
 Key implementation touchpoints:
 
-| Layer | File | Change |
-|-------|------|--------|
-| Agent | `base-agent.ts` | `createTransferTokenIntent()` helper |
-| Orchestrator | `orchestrator.ts` | `executeTokenTransfer()` method, `case 'transfer_token'` |
-| Wallet | `wallet-manager.ts` | `validateIntent()` handles `transfer_token` |
-| RPC | `transaction-builder.ts` | `buildTokenTransfer()` + `buildMemoInstruction()` |
-| Integration | `agentRegistry.ts` | `TRANSFER_TOKEN` in `SupportedIntentType` |
-| Integration | `intentRouter.ts` | `executeTransferToken()` for BYOA agents |
-| Server | `server.ts` | `TRANSFER_TOKEN` in Zod schemas |
-| Strategy | `strategy-registry.ts` | Distributor & ScheduledPayer support `transfer_token` |
-| Frontend | types, pages | `TRANSFER_TOKEN` in UI types, BYOA register, IntentHistory |
+| Layer        | File                     | Change                                                     |
+| ------------ | ------------------------ | ---------------------------------------------------------- |
+| Agent        | `base-agent.ts`          | `createTransferTokenIntent()` helper                       |
+| Orchestrator | `orchestrator.ts`        | `executeTokenTransfer()` method, `case 'transfer_token'`   |
+| Wallet       | `wallet-manager.ts`      | `validateIntent()` handles `transfer_token`                |
+| RPC          | `transaction-builder.ts` | `buildTokenTransfer()` + `buildMemoInstruction()`          |
+| Integration  | `agentRegistry.ts`       | `TRANSFER_TOKEN` in `SupportedIntentType`                  |
+| Integration  | `intentRouter.ts`        | `executeTransferToken()` for BYOA agents                   |
+| Server       | `server.ts`              | `TRANSFER_TOKEN` in Zod schemas                            |
+| Strategy     | `strategy-registry.ts`   | Distributor & ScheduledPayer support `transfer_token`      |
+| Frontend     | types, pages             | `TRANSFER_TOKEN` in UI types, BYOA register, IntentHistory |
 
 ### BYOA and Token Transfers
 

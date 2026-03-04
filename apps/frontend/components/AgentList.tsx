@@ -2,7 +2,7 @@
 
 /**
  * Agent List Component
- * 
+ *
  * Clean grid of agent cards with empty state.
  */
 
@@ -63,9 +63,7 @@ export function AgentList({ onCreateClick }: AgentListProps) {
           <div className="w-14 h-14 mx-auto mb-5 rounded-xl bg-background-secondary flex items-center justify-center">
             <Bot className="w-7 h-7 text-text-muted" />
           </div>
-          <h3 className="text-heading-sm text-text-primary mb-2">
-            No agents yet
-          </h3>
+          <h3 className="text-heading-sm text-text-primary mb-2">No agents yet</h3>
           <p className="text-body text-text-tertiary mb-6 max-w-sm mx-auto">
             Create your first agent to start autonomous wallet management.
           </p>
@@ -87,10 +85,10 @@ export function AgentList({ onCreateClick }: AgentListProps) {
           key={agent.id}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ 
+          transition={{
             delay: index * 0.04,
             duration: 0.3,
-            ease: [0.16, 1, 0.3, 1]
+            ease: [0.16, 1, 0.3, 1],
           }}
         >
           <AgentCard agent={agent} onUpdate={refetch} />
@@ -99,4 +97,3 @@ export function AgentList({ onCreateClick }: AgentListProps) {
     </div>
   );
 }
-

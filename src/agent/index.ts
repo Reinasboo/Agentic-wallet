@@ -1,6 +1,6 @@
 /**
  * Agent Module Exports
- * 
+ *
  * This module contains agent implementations.
  * Agents make decisions but have NO access to private keys.
  */

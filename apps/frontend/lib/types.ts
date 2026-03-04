@@ -1,17 +1,11 @@
 /**
  * Frontend Types
- * 
+ *
  * These mirror the backend types for type safety.
  * The frontend only receives public, safe data.
  */
 
-export type AgentStatus = 
-  | 'idle'
-  | 'thinking'
-  | 'executing'
-  | 'waiting'
-  | 'error'
-  | 'stopped';
+export type AgentStatus = 'idle' | 'thinking' | 'executing' | 'waiting' | 'error' | 'stopped';
 
 export type AgentStrategy = string;
 
@@ -21,14 +15,9 @@ export interface ExecutionSettings {
   enabled: boolean;
 }
 
-export type TransactionStatus = 
-  | 'pending'
-  | 'submitted'
-  | 'confirmed'
-  | 'finalized'
-  | 'failed';
+export type TransactionStatus = 'pending' | 'submitted' | 'confirmed' | 'finalized' | 'failed';
 
-export type TransactionType = 
+export type TransactionType =
   | 'airdrop'
   | 'transfer_sol'
   | 'transfer_spl'
@@ -116,7 +105,12 @@ export interface AgentDetail {
 
 export type ExternalAgentType = 'local' | 'remote';
 export type ExternalAgentStatus = 'registered' | 'active' | 'inactive' | 'revoked';
-export type SupportedIntentType = 'REQUEST_AIRDROP' | 'TRANSFER_SOL' | 'TRANSFER_TOKEN' | 'QUERY_BALANCE' | 'AUTONOMOUS';
+export type SupportedIntentType =
+  | 'REQUEST_AIRDROP'
+  | 'TRANSFER_SOL'
+  | 'TRANSFER_TOKEN'
+  | 'QUERY_BALANCE'
+  | 'AUTONOMOUS';
 
 export interface ExternalAgent {
   id: string;

@@ -9,11 +9,7 @@
 
 import Head from 'next/head';
 import { motion } from 'framer-motion';
-import {
-  Sidebar,
-  Header,
-  IntentHistory,
-} from '@/components';
+import { Sidebar, Header, IntentHistory } from '@/components';
 import { useAllIntentHistory } from '@/lib/hooks';
 
 export default function IntentHistoryPage() {
@@ -40,9 +36,7 @@ export default function IntentHistoryPage() {
                 Loading intent history…
               </div>
             ) : error ? (
-              <div className="text-center py-12 text-status-error text-body">
-                {error}
-              </div>
+              <div className="text-center py-12 text-status-error text-body">{error}</div>
             ) : (
               <motion.div
                 initial={{ opacity: 0, y: 8 }}
@@ -50,9 +44,7 @@ export default function IntentHistoryPage() {
                 className="bg-surface border border-border-light rounded-2xl p-5"
               >
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-label text-text-secondary">
-                    All Intents ({intents.length})
-                  </h3>
+                  <h3 className="text-label text-text-secondary">All Intents ({intents.length})</h3>
                   <button
                     onClick={refetch}
                     className="text-caption text-text-muted hover:text-text-secondary transition-colors"

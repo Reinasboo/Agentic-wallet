@@ -1,6 +1,6 @@
 /**
  * Transaction Builder
- * 
+ *
  * Creates Solana transactions for various operations.
  * Does NOT sign transactions - that's the wallet layer's job.
  */
@@ -38,7 +38,7 @@ export const MEMO_PROGRAM_ID = new PublicKey('MemoSq4gqABAXKb96qnH8TysNcWxMyWCqX
  */
 export function buildMemoInstruction(
   message: string,
-  signerPubkey: PublicKey,
+  signerPubkey: PublicKey
 ): TransactionInstruction {
   return new TransactionInstruction({
     keys: [{ pubkey: signerPubkey, isSigner: true, isWritable: false }],
@@ -52,7 +52,7 @@ export function buildMemoInstruction(
  */
 export async function buildMemoTransaction(
   signer: PublicKey,
-  message: string,
+  message: string
 ): Promise<Result<Transaction, Error>> {
   try {
     const client = getSolanaClient();
@@ -85,23 +85,23 @@ export async function buildSolTransfer(
   from: PublicKey,
   to: PublicKey,
   amount: number,
-  memo?: string,
+  memo?: string
 ): Promise<Result<Transaction, Error>> {
   try {
     const client = getSolanaClient();
     const blockhashResult = await client.getRecentBlockhash();
-    
+
     if (!blockhashResult.ok) {
       return failure(blockhashResult.error);
     }
-    
+
     const lamports = Math.round(amount * LAMPORTS_PER_SOL);
-    
+
     const transaction = new Transaction({
       recentBlockhash: blockhashResult.value,
       feePayer: from,
     });
-    
+
     transaction.add(
       SystemProgram.transfer({
         fromPubkey: from,
@@ -114,7 +114,7 @@ export async function buildSolTransfer(
     if (memo) {
       transaction.add(buildMemoInstruction(memo, from));
     }
-    
+
     logger.debug('Built SOL transfer transaction', {
       from: from.toBase58(),
       to: to.toBase58(),
@@ -122,7 +122,7 @@ export async function buildSolTransfer(
       lamports,
       hasMemo: !!memo,
     });
-    
+
     return success(transaction);
   } catch (error) {
     logger.error('Failed to build SOL transfer', { error: String(error) });
@@ -139,17 +139,17 @@ export async function buildTokenTransfer(
   recipient: PublicKey,
   amount: bigint,
   decimals: number,
-  memo?: string,
+  memo?: string
 ): Promise<Result<Transaction, Error>> {
   try {
     const client = getSolanaClient();
     const connection = client.getConnection();
-    
+
     const blockhashResult = await client.getRecentBlockhash();
     if (!blockhashResult.ok) {
       return failure(blockhashResult.error);
     }
-    
+
     // Get source token account
     const sourceTokenAccount = await getAssociatedTokenAddress(
       mint,
@@ -158,7 +158,7 @@ export async function buildTokenTransfer(
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
-    
+
     // Get destination token account
     const destTokenAccount = await getAssociatedTokenAddress(
       mint,
@@ -167,15 +167,15 @@ export async function buildTokenTransfer(
       TOKEN_PROGRAM_ID,
       ASSOCIATED_TOKEN_PROGRAM_ID
     );
-    
+
     const transaction = new Transaction({
       recentBlockhash: blockhashResult.value,
       feePayer: owner,
     });
-    
+
     // Check if destination token account exists
     const destAccountInfo = await connection.getAccountInfo(destTokenAccount);
-    
+
     if (!destAccountInfo) {
       // Create associated token account for recipient
       transaction.add(
@@ -189,7 +189,7 @@ export async function buildTokenTransfer(
         )
       );
     }
-    
+
     // Add transfer instruction
     transaction.add(
       createTransferInstruction(
@@ -206,14 +206,14 @@ export async function buildTokenTransfer(
     if (memo) {
       transaction.add(buildMemoInstruction(memo, owner));
     }
-    
+
     logger.debug('Built token transfer transaction', {
       owner: owner.toBase58(),
       mint: mint.toBase58(),
       recipient: recipient.toBase58(),
       amount: amount.toString(),
     });
-    
+
     return success(transaction);
   } catch (error) {
     logger.error('Failed to build token transfer', { error: String(error) });
@@ -228,14 +228,14 @@ export async function estimateFee(transaction: Transaction): Promise<Result<numb
   try {
     const client = getSolanaClient();
     const connection = client.getConnection();
-    
+
     const message = transaction.compileMessage();
     const fees = await connection.getFeeForMessage(message);
-    
+
     if (fees.value === null) {
       return failure(new Error('Failed to estimate fee'));
     }
-    
+
     return success(fees.value / LAMPORTS_PER_SOL);
   } catch (error) {
     return failure(error instanceof Error ? error : new Error(String(error)));
@@ -252,19 +252,19 @@ export async function estimateFee(transaction: Transaction): Promise<Result<numb
  */
 export const KNOWN_PROGRAMS: Record<string, string> = {
   '11111111111111111111111111111111': 'System Program',
-  'TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA': 'Token Program',
-  'ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL': 'Associated Token Program',
-  'MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr': 'Memo Program v2',
+  TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA: 'Token Program',
+  ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL: 'Associated Token Program',
+  MemoSq4gqABAXKb96qnH8TysNcWxMyWCqXgDLGmfcHr: 'Memo Program v2',
   '6EF8rrecthR5Dkzon8Nwu78hRvfCKubJ14M5uBEwF6P': 'Pump.fun',
-  'pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA': 'PumpSwap AMM',
-  'BoNKFKgVR4AhBCbFvEJhEEGwBwMgh4xnSuFgrEbGo3xj': 'Bonk.fun',
-  'JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4': 'Jupiter v6',
-  'jupoNjAxXgZ4rjzxzPMP4oxduvQsQtZzyknqvzYNrNu': 'Jupiter v6 Aggregator',
+  pAMMBay6oceH9fJKBRHGP5D4bD4sWpmSwMn52FMfXEA: 'PumpSwap AMM',
+  BoNKFKgVR4AhBCbFvEJhEEGwBwMgh4xnSuFgrEbGo3xj: 'Bonk.fun',
+  JUP6LkbZbjS1jKKwapdHNy74zcZ3tLUZoi5QNyVTaV4: 'Jupiter v6',
+  jupoNjAxXgZ4rjzxzPMP4oxduvQsQtZzyknqvzYNrNu: 'Jupiter v6 Aggregator',
   '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8': 'Raydium AMM v4',
-  'whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc': 'Orca Whirlpool',
-  'CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK': 'Raydium CLMM',
-  'metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s': 'Metaplex Token Metadata',
-  'cndy3Z4yapfJBmearM12BSwWbJyVnDErehJuiPaM2mn': 'Candy Machine v2',
+  whirLbMiicVdio4qvUfM5KAg6Ct8VwpYzGff3uctyCc: 'Orca Whirlpool',
+  CAMMCzo5YL8w4VFF8KVHrK22GGUsp5VTaW7grrKgrWqK: 'Raydium CLMM',
+  metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s: 'Metaplex Token Metadata',
+  cndy3Z4yapfJBmearM12BSwWbJyVnDErehJuiPaM2mn: 'Candy Machine v2',
 };
 
 /**
@@ -272,13 +272,13 @@ export const KNOWN_PROGRAMS: Record<string, string> = {
  * Each instruction targets a specific program with accounts and data.
  */
 export interface InstructionDescriptor {
-  programId: string;                              // base58 program address
+  programId: string; // base58 program address
   keys: Array<{
-    pubkey: string;                               // base58
+    pubkey: string; // base58
     isSigner: boolean;
     isWritable: boolean;
   }>;
-  data: string;                                   // base64-encoded instruction data
+  data: string; // base64-encoded instruction data
 }
 
 /**
@@ -290,7 +290,7 @@ export interface InstructionDescriptor {
 export async function buildArbitraryTransaction(
   payer: PublicKey,
   instructions: InstructionDescriptor[],
-  memo?: string,
+  memo?: string
 ): Promise<Result<Transaction, Error>> {
   try {
     if (!instructions || instructions.length === 0) {
@@ -318,7 +318,11 @@ export async function buildArbitraryTransaction(
       transaction.add(new TransactionInstruction({ programId, keys, data }));
 
       const programName = KNOWN_PROGRAMS[ix.programId] ?? ix.programId.slice(0, 8) + '...';
-      logger.debug('Added instruction', { programName, numKeys: keys.length, dataLen: data.length });
+      logger.debug('Added instruction', {
+        programName,
+        numKeys: keys.length,
+        dataLen: data.length,
+      });
     }
 
     // Optionally append a memo for audit trail
@@ -346,7 +350,7 @@ export async function buildArbitraryTransaction(
  */
 export async function deserializeTransaction(
   base64Tx: string,
-  payer: PublicKey,
+  payer: PublicKey
 ): Promise<Result<Transaction, Error>> {
   try {
     const buffer = Buffer.from(base64Tx, 'base64');

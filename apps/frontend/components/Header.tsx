@@ -2,7 +2,7 @@
 
 /**
  * Header Component
- * 
+ *
  * Minimal, calm top bar with subtle status indicators.
  * Emphasizes content over chrome.
  */
@@ -28,7 +28,7 @@ export function Header({ title, subtitle }: HeaderProps) {
         {/* Title area */}
         <div className="space-y-1">
           {title && (
-            <motion.h1 
+            <motion.h1
               initial={{ opacity: 0, y: -4 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
@@ -37,11 +37,7 @@ export function Header({ title, subtitle }: HeaderProps) {
               {title}
             </motion.h1>
           )}
-          {subtitle && (
-            <p className="text-body text-text-tertiary">
-              {subtitle}
-            </p>
-          )}
+          {subtitle && <p className="text-body text-text-tertiary">{subtitle}</p>}
         </div>
 
         {/* Status indicators - subtle, right-aligned */}
@@ -49,20 +45,24 @@ export function Header({ title, subtitle }: HeaderProps) {
           {/* Backend health */}
           {healthy !== null && (
             <div className="flex items-center gap-2">
-              <span className={cn(
-                'w-1.5 h-1.5 rounded-full',
-                healthy ? 'bg-status-success' : 'bg-status-error'
-              )} />
+              <span
+                className={cn(
+                  'w-1.5 h-1.5 rounded-full',
+                  healthy ? 'bg-status-success' : 'bg-status-error'
+                )}
+              />
               <span>{healthy ? 'Healthy' : 'Degraded'}</span>
             </div>
           )}
 
           {/* WebSocket connection status */}
           <div className="flex items-center gap-2">
-            <span className={cn(
-              'w-1.5 h-1.5 rounded-full',
-              connected ? 'bg-status-success' : 'bg-status-error'
-            )} />
+            <span
+              className={cn(
+                'w-1.5 h-1.5 rounded-full',
+                connected ? 'bg-status-success' : 'bg-status-error'
+              )}
+            />
             <span>{connected ? 'Live' : 'Offline'}</span>
           </div>
 

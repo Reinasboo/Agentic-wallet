@@ -1,6 +1,6 @@
 /**
  * Event Emitter
- * 
+ *
  * Simple typed event emitter for system-wide events.
  */
 
@@ -23,7 +23,9 @@ class EventBus {
   subscribe(handler: EventHandler): () => void {
     // L-6: Prevent unbounded subscriber growth
     if (this.handlers.size >= this.maxSubscribers) {
-      console.warn(`EventBus: max subscribers (${this.maxSubscribers}) reached, rejecting subscription`);
+      console.warn(
+        `EventBus: max subscribers (${this.maxSubscribers}) reached, rejecting subscription`
+      );
       return () => {}; // no-op unsubscribe
     }
     this.handlers.add(handler);

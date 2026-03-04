@@ -35,7 +35,7 @@ export class ScheduledPayerAgent extends BaseAgent {
     name: string,
     walletId: string,
     walletPublicKey: string,
-    params?: Partial<ScheduledPayerParams>,
+    params?: Partial<ScheduledPayerParams>
   ) {
     super(name, 'scheduled_payer', walletId, walletPublicKey, params as Record<string, unknown>);
     this.params = { ...DEFAULT_PARAMS, ...params };
@@ -56,12 +56,18 @@ export class ScheduledPayerAgent extends BaseAgent {
     }
 
     if (this.paymentsToday >= this.params.maxPaymentsPerDay) {
-      return { shouldAct: false, reasoning: `Daily payment limit reached (${this.params.maxPaymentsPerDay})` };
+      return {
+        shouldAct: false,
+        reasoning: `Daily payment limit reached (${this.params.maxPaymentsPerDay})`,
+      };
     }
 
     const afterSend = context.balance.sol - this.params.amount - ESTIMATED_SOL_TRANSFER_FEE;
     if (afterSend < this.params.minBalanceToSend) {
-      return { shouldAct: false, reasoning: `Balance too low to send (need ${this.params.minBalanceToSend} SOL reserve)` };
+      return {
+        shouldAct: false,
+        reasoning: `Balance too low to send (need ${this.params.minBalanceToSend} SOL reserve)`,
+      };
     }
 
     this.paymentsToday++;

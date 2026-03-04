@@ -11,14 +11,7 @@
 import { useState } from 'react';
 import Head from 'next/head';
 import { motion, AnimatePresence } from 'framer-motion';
-import {
-  Plug,
-  ShieldAlert,
-  Copy,
-  Check,
-  AlertTriangle,
-  ExternalLink,
-} from 'lucide-react';
+import { Plug, ShieldAlert, Copy, Check, AlertTriangle, ExternalLink } from 'lucide-react';
 import { Sidebar, Header } from '@/components';
 import * as api from '@/lib/api';
 import { copyToClipboard, cn, truncateAddress } from '@/lib/utils';
@@ -47,9 +40,7 @@ export default function BYOARegisterPage() {
   const [walletCopied, setWalletCopied] = useState(false);
 
   const toggleIntent = (id: string) => {
-    setIntents((prev) =>
-      prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]
-    );
+    setIntents((prev) => (prev.includes(id) ? prev.filter((i) => i !== id) : [...prev, id]));
   };
 
   const handleRegister = async () => {
@@ -143,9 +134,9 @@ export default function BYOARegisterPage() {
                     <div className="flex items-start gap-3 p-3 rounded-lg bg-status-warning/10 border border-status-warning/20">
                       <AlertTriangle className="w-5 h-5 text-status-warning flex-shrink-0 mt-0.5" />
                       <p className="text-body-sm text-text-secondary">
-                        Registered agents receive a one-time <strong>control token</strong>.
-                        This token is shown only once — treat it like a password.
-                        Never share it or store it in source code.
+                        Registered agents receive a one-time <strong>control token</strong>. This
+                        token is shown only once — treat it like a password. Never share it or store
+                        it in source code.
                       </p>
                     </div>
 
@@ -304,8 +295,8 @@ export default function BYOARegisterPage() {
                       <div className="flex items-start gap-2 text-micro text-text-muted">
                         <AlertTriangle className="w-3.5 h-3.5 text-status-warning flex-shrink-0 mt-0.5" />
                         <span>
-                          Store this token in a secure credential store (e.g. environment variable, vault).
-                          If lost, revoke the agent and re-register.
+                          Store this token in a secure credential store (e.g. environment variable,
+                          vault). If lost, revoke the agent and re-register.
                         </span>
                       </div>
                     </div>
@@ -380,9 +371,7 @@ function Row({
       {children ? (
         <div className="flex items-center gap-1">{children}</div>
       ) : (
-        <span className={cn('text-body-sm text-text-primary', mono && 'font-mono')}>
-          {value}
-        </span>
+        <span className={cn('text-body-sm text-text-primary', mono && 'font-mono')}>{value}</span>
       )}
     </div>
   );

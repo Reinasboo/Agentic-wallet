@@ -63,9 +63,7 @@ function ParamInput({
           />
           <div>
             <span className="text-body-sm text-text-primary">{field.label}</span>
-            {field.description && (
-              <p className="text-micro text-text-muted">{field.description}</p>
-            )}
+            {field.description && <p className="text-micro text-text-muted">{field.description}</p>}
           </div>
         </label>
       );
@@ -117,9 +115,7 @@ function ParamInput({
           <input
             type="number"
             value={value !== undefined && value !== '' ? Number(value) : ''}
-            onChange={(e) =>
-              onChange(e.target.value === '' ? undefined : Number(e.target.value))
-            }
+            onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
             className="input"
             step="any"
           />
@@ -140,9 +136,7 @@ export function AgentSettingsPanel({ agent, onUpdated }: AgentSettingsPanelProps
   const [cycleInterval, setCycleInterval] = useState(
     agent.executionSettings?.cycleIntervalMs ?? 30000
   );
-  const [maxActions, setMaxActions] = useState(
-    agent.executionSettings?.maxActionsPerDay ?? 100
-  );
+  const [maxActions, setMaxActions] = useState(agent.executionSettings?.maxActionsPerDay ?? 100);
   const [enabled, setEnabled] = useState(agent.executionSettings?.enabled ?? true);
 
   const [saving, setSaving] = useState(false);

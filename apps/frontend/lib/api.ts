@@ -1,6 +1,6 @@
 /**
  * API Client
- * 
+ *
  * Handles all API communication with the backend.
  * The frontend is READ-ONLY for observing system state.
  */
@@ -27,10 +27,7 @@ function adminHeaders(): Record<string, string> {
   return { 'X-Admin-Key': ADMIN_API_KEY };
 }
 
-async function fetchApi<T>(
-  endpoint: string,
-  options?: RequestInit
-): Promise<ApiResponse<T>> {
+async function fetchApi<T>(endpoint: string, options?: RequestInit): Promise<ApiResponse<T>> {
   try {
     const response = await fetch(`${API_BASE}${endpoint}`, {
       ...options,
@@ -111,7 +108,7 @@ export async function updateAgentConfig(
       maxActionsPerDay?: number;
       enabled?: boolean;
     };
-  },
+  }
 ): Promise<ApiResponse<Agent>> {
   return fetchApi(`/api/agents/${id}/config`, {
     method: 'PATCH',
@@ -146,9 +143,7 @@ export async function getEvents(count?: number): Promise<ApiResponse<SystemEvent
 }
 
 // Explorer URL
-export async function getExplorerUrl(
-  signature: string
-): Promise<ApiResponse<{ url: string }>> {
+export async function getExplorerUrl(signature: string): Promise<ApiResponse<{ url: string }>> {
   return fetchApi(`/api/explorer/${signature}`);
 }
 
@@ -223,9 +218,7 @@ export async function getExternalAgents(): Promise<ApiResponse<ExternalAgent[]>>
   return fetchApi('/api/byoa/agents');
 }
 
-export async function getExternalAgent(
-  id: string
-): Promise<ApiResponse<ExternalAgentDetail>> {
+export async function getExternalAgent(id: string): Promise<ApiResponse<ExternalAgentDetail>> {
   return fetchApi(`/api/byoa/agents/${id}`);
 }
 
@@ -251,20 +244,14 @@ export async function getAllIntentHistory(
   return fetchApi(`/api/intents${params}`);
 }
 
-export async function deactivateExternalAgent(
-  id: string
-): Promise<ApiResponse<void>> {
+export async function deactivateExternalAgent(id: string): Promise<ApiResponse<void>> {
   return fetchApi(`/api/byoa/agents/${id}/deactivate`, { method: 'POST', headers: adminHeaders() });
 }
 
-export async function activateExternalAgent(
-  id: string
-): Promise<ApiResponse<void>> {
+export async function activateExternalAgent(id: string): Promise<ApiResponse<void>> {
   return fetchApi(`/api/byoa/agents/${id}/activate`, { method: 'POST', headers: adminHeaders() });
 }
 
-export async function revokeExternalAgent(
-  id: string
-): Promise<ApiResponse<void>> {
+export async function revokeExternalAgent(id: string): Promise<ApiResponse<void>> {
   return fetchApi(`/api/byoa/agents/${id}/revoke`, { method: 'POST', headers: adminHeaders() });
 }

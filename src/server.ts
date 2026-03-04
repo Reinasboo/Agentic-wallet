@@ -1,6 +1,6 @@
 ﻿/**
  * API Server
- * 
+ *
  * REST API for the frontend to observe system state.
  * The frontend is READ-ONLY - it cannot execute transactions or access keys.
  */
@@ -32,24 +32,24 @@ const app = express();
 // M-8: Configurable CORS origins via env var
 const config = getConfig();
 const corsOrigins = config.CORS_ORIGINS
-  ? config.CORS_ORIGINS.split(',').map((o: string) => o.trim()).filter(Boolean)
-  : [
-      `http://localhost:${config.PORT}`,
-      `http://localhost:3000`,
-      'http://127.0.0.1:3000',
-    ];
+  ? config.CORS_ORIGINS.split(',')
+      .map((o: string) => o.trim())
+      .filter(Boolean)
+  : [`http://localhost:${config.PORT}`, `http://localhost:3000`, 'http://127.0.0.1:3000'];
 
-app.use(cors({
-  origin: corsOrigins,
-  methods: ['GET', 'POST', 'PATCH'],
-}));
+app.use(
+  cors({
+    origin: corsOrigins,
+    methods: ['GET', 'POST', 'PATCH'],
+  })
+);
 
 // Limit request body size to prevent DoS (512kb for raw transactions)
 app.use(express.json({ limit: '512kb' }));
 
 // ── API-level rate limiting (per IP) ────────────────────────────────
 const apiRateLimitWindow = 60_000; // 1 minute
-const apiRateLimitMax = 120;       // requests per window per IP
+const apiRateLimitMax = 120; // requests per window per IP
 const apiRateMap = new Map<string, number[]>();
 
 app.use((req: Request, res: Response, next: NextFunction) => {
@@ -165,20 +165,24 @@ const CreateAgentSchema = z.object({
   name: z.string().min(1).max(50),
   strategy: z.string().min(1).max(50),
   strategyParams: safeRecord.optional(),
-  executionSettings: z.object({
-    cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
-    maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
-    enabled: z.boolean().optional(),
-  }).optional(),
+  executionSettings: z
+    .object({
+      cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
+      maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 const UpdateAgentConfigSchema = z.object({
   strategyParams: safeRecord.optional(),
-  executionSettings: z.object({
-    cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
-    maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
-    enabled: z.boolean().optional(),
-  }).optional(),
+  executionSettings: z
+    .object({
+      cycleIntervalMs: z.number().int().min(5000).max(3600000).optional(),
+      maxActionsPerDay: z.number().int().min(1).max(10000).optional(),
+      enabled: z.boolean().optional(),
+    })
+    .optional(),
 });
 
 /**
@@ -334,9 +338,7 @@ app.get('/api/agents/:id', async (req: Request, res: Response) => {
 
     const walletResult = walletManager.getWallet(agent.walletId);
     if (walletResult.ok) {
-      const pubkey = new PublicKey(
-        walletResult.value.publicKey
-      );
+      const pubkey = new PublicKey(walletResult.value.publicKey);
       const balanceResult = await client.getBalance(pubkey);
       if (balanceResult.ok) {
         balance = balanceResult.value.sol;
@@ -485,10 +487,7 @@ app.patch('/api/agents/:id/config', requireAdminAuth, async (req: Request, res: 
     }
 
     const orchestrator = getOrchestrator();
-    const result = orchestrator.updateAgentConfig(
-      req.params['id'] ?? '',
-      validation.data,
-    );
+    const result = orchestrator.updateAgentConfig(req.params['id'] ?? '', validation.data);
 
     if (!result.ok) {
       res.status(400).json({
@@ -579,7 +578,12 @@ app.get('/api/transactions', (req: Request, res: Response) => {
     const start = (page - 1) * limit;
     const transactions = allTransactions.slice(start, start + limit);
 
-    const response: ApiResponse<{ transactions: typeof transactions; total: number; page: number; limit: number }> = {
+    const response: ApiResponse<{
+      transactions: typeof transactions;
+      total: number;
+      page: number;
+      limit: number;
+    }> = {
       success: true,
       data: { transactions, total: allTransactions.length, page, limit },
       timestamp: new Date(),
@@ -642,22 +646,35 @@ const RegisterAgentSchema = z.object({
   agentName: z.string().min(1).max(100),
   agentType: z.enum(['local', 'remote']),
   agentEndpoint: z.string().url().optional(),
-  supportedIntents: z.array(
-    z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS'])
-  ).min(1),
+  supportedIntents: z
+    .array(
+      z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS'])
+    )
+    .min(1),
   metadata: safeRecord.optional(),
 });
 
-const SubmitIntentSchema = z.object({
-  type: z.enum(['REQUEST_AIRDROP', 'TRANSFER_SOL', 'TRANSFER_TOKEN', 'QUERY_BALANCE', 'AUTONOMOUS']),
-  params: safeRecord.default({}),
-}).refine((data) => {
-  // For AUTONOMOUS intents, ensure `action` is present
-  if (data.type === 'AUTONOMOUS' && typeof data.params['action'] !== 'string') {
-    return false;
-  }
-  return true;
-}, { message: 'AUTONOMOUS intents require params.action (string)' });
+const SubmitIntentSchema = z
+  .object({
+    type: z.enum([
+      'REQUEST_AIRDROP',
+      'TRANSFER_SOL',
+      'TRANSFER_TOKEN',
+      'QUERY_BALANCE',
+      'AUTONOMOUS',
+    ]),
+    params: safeRecord.default({}),
+  })
+  .refine(
+    (data) => {
+      // For AUTONOMOUS intents, ensure `action` is present
+      if (data.type === 'AUTONOMOUS' && typeof data.params['action'] !== 'string') {
+        return false;
+      }
+      return true;
+    },
+    { message: 'AUTONOMOUS intents require params.action (string)' }
+  );
 
 /**
  * Register an external agent and receive a wallet + control token.
@@ -870,9 +887,7 @@ app.get('/api/byoa/agents/:id', async (req: Request, res: Response) => {
     if (agent.walletId) {
       const walletResult = walletManager.getWallet(agent.walletId);
       if (walletResult.ok) {
-        const pubkey = new PublicKey(
-          walletResult.value.publicKey
-        );
+        const pubkey = new PublicKey(walletResult.value.publicKey);
         const balanceResult = await client.getBalance(pubkey);
         if (balanceResult.ok) {
           balance = balanceResult.value.sol;
@@ -1056,7 +1071,7 @@ app.post('/api/byoa/agents/:id/rotate-token', requireAdminAuth, (req: Request, r
       success: true,
       data: {
         agentId,
-        controlToken: result.value,           // New token — shown once
+        controlToken: result.value, // New token — shown once
         walletPublicKey: agentResult.value.walletPublicKey,
         note: 'Token rotated. Update your agent with this new token. The wallet is unchanged.',
       },
@@ -1129,7 +1144,10 @@ function setupWebSocket(port: number): void {
   wss = new WebSocketServer({
     port,
     // H-2: Validate origin for WebSocket connections
-    verifyClient: (info: { origin?: string; req: { headers: Record<string, string | string[] | undefined> } }) => {
+    verifyClient: (info: {
+      origin?: string;
+      req: { headers: Record<string, string | string[] | undefined> };
+    }) => {
       const origin = info.origin ?? info.req.headers['origin'] ?? '';
       // Allow connections with no origin (e.g. CLI tools, server-to-server)
       if (!origin) return true;

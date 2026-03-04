@@ -54,7 +54,9 @@ export class WalletBinder {
   }
 
   private loadFromStore(): void {
-    interface SavedBinder { walletToAgent: Record<string, string> }
+    interface SavedBinder {
+      walletToAgent: Record<string, string>;
+    }
     const saved = loadState<SavedBinder>('byoa-binder');
     if (!saved?.walletToAgent) return;
     for (const [walletId, agentId] of Object.entries(saved.walletToAgent)) {
@@ -78,7 +80,9 @@ export class WalletBinder {
 
     // Enforce 1-wallet-per-agent
     if (agent.walletId) {
-      return failure(new Error(`Agent "${agent.name}" already has a bound wallet: ${agent.walletId}`));
+      return failure(
+        new Error(`Agent "${agent.name}" already has a bound wallet: ${agent.walletId}`)
+      );
     }
 
     // Create wallet via existing manager (key generation + encryption inside)

@@ -1,6 +1,6 @@
 /**
  * Wallet Manager
- * 
+ *
  * SECURITY-CRITICAL: This module handles private key generation and storage.
  * Private keys are:
  * - Generated securely using Solana's Keypair
@@ -22,7 +22,11 @@ import {
   Intent,
 } from '../utils/types.js';
 import { encrypt, decrypt, generateSecureId } from '../utils/encryption.js';
-import { getConfig, ESTIMATED_SOL_TRANSFER_FEE, ESTIMATED_TOKEN_TRANSFER_FEE } from '../utils/config.js';
+import {
+  getConfig,
+  ESTIMATED_SOL_TRANSFER_FEE,
+  ESTIMATED_TOKEN_TRANSFER_FEE,
+} from '../utils/config.js';
 import { createLogger } from '../utils/logger.js';
 import { saveState, loadState } from '../utils/store.js';
 
@@ -30,7 +34,7 @@ const logger = createLogger('WALLET');
 
 /**
  * WalletManager - Secure wallet operations
- * 
+ *
  * This class provides a strict API boundary:
  * - Public methods return only public information
  * - Private keys never leave this class
@@ -55,9 +59,9 @@ export class WalletManager {
     const tomorrow = new Date(now);
     tomorrow.setDate(tomorrow.getDate() + 1);
     tomorrow.setHours(0, 0, 0, 0);
-    
+
     const msUntilMidnight = tomorrow.getTime() - now.getTime();
-    
+
     setTimeout(() => {
       this.dailyTransfers.clear();
       logger.info('Daily transfer counters reset');
@@ -72,13 +76,10 @@ export class WalletManager {
     try {
       const keypair = Keypair.generate();
       const walletId = generateSecureId('wallet');
-      
+
       // Encrypt the secret key immediately
-      const encryptedSecretKey = encrypt(
-        keypair.secretKey,
-        this.encryptionSecret
-      );
-      
+      const encryptedSecretKey = encrypt(keypair.secretKey, this.encryptionSecret);
+
       const wallet: InternalWallet = {
         id: walletId,
         publicKey: keypair.publicKey.toBase58(),
@@ -86,17 +87,17 @@ export class WalletManager {
         createdAt: new Date(),
         label,
       };
-      
+
       this.wallets.set(walletId, wallet);
       this.policies.set(walletId, { ...DEFAULT_POLICY });
       this.dailyTransfers.set(walletId, 0);
-      
+
       logger.info('Wallet created', {
         walletId,
         publicKey: wallet.publicKey,
         label,
       });
-      
+
       this.saveToStore();
       // Return only public information
       return success(this.toWalletInfo(wallet));
@@ -111,11 +112,11 @@ export class WalletManager {
    */
   getWallet(walletId: string): Result<WalletInfo, Error> {
     const wallet = this.wallets.get(walletId);
-    
+
     if (!wallet) {
       return failure(new Error(`Wallet not found: ${walletId}`));
     }
-    
+
     return success(this.toWalletInfo(wallet));
   }
 
@@ -123,7 +124,7 @@ export class WalletManager {
    * Get all wallets (public info only)
    */
   getAllWallets(): WalletInfo[] {
-    return Array.from(this.wallets.values()).map(w => this.toWalletInfo(w));
+    return Array.from(this.wallets.values()).map((w) => this.toWalletInfo(w));
   }
 
   /**
@@ -131,11 +132,11 @@ export class WalletManager {
    */
   getPublicKey(walletId: string): Result<PublicKey, Error> {
     const wallet = this.wallets.get(walletId);
-    
+
     if (!wallet) {
       return failure(new Error(`Wallet not found: ${walletId}`));
     }
-    
+
     try {
       return success(new PublicKey(wallet.publicKey));
     } catch (error) {
@@ -145,7 +146,7 @@ export class WalletManager {
 
   /**
    * Sign a transaction
-   * 
+   *
    * SECURITY: This is the only place where private keys are decrypted.
    * The key is decrypted, used to sign, and then discarded.
    */
@@ -154,28 +155,28 @@ export class WalletManager {
     transaction: Transaction | VersionedTransaction
   ): Result<Transaction | VersionedTransaction, Error> {
     const wallet = this.wallets.get(walletId);
-    
+
     if (!wallet) {
       return failure(new Error(`Wallet not found: ${walletId}`));
     }
-    
+
     try {
       // Decrypt the secret key momentarily
       const secretKey = decrypt(wallet.encryptedSecretKey, this.encryptionSecret);
       const keypair = Keypair.fromSecretKey(secretKey);
-      
+
       // Sign the transaction
       if (transaction instanceof Transaction) {
         transaction.partialSign(keypair);
       } else {
         transaction.sign([keypair]);
       }
-      
+
       // Zero out private key material from memory
       secretKey.fill(0);
-      
+
       logger.debug('Transaction signed', { walletId });
-      
+
       // Return the signed transaction
       return success(transaction);
     } catch (error) {
@@ -192,11 +193,11 @@ export class WalletManager {
    */
   validateIntent(walletId: string, intent: Intent, currentBalance: number): Result<true, Error> {
     const policy = this.policies.get(walletId);
-    
+
     if (!policy) {
       return failure(new Error(`No policy found for wallet: ${walletId}`));
     }
-    
+
     const dailyCount = this.dailyTransfers.get(walletId) ?? 0;
 
     // Autonomous intents still enforce basic safety guardrails:
@@ -212,9 +213,11 @@ export class WalletManager {
 
       // Enforce daily transfer limit (autonomous gets 2x normal allowance)
       if (dailyCount >= policy.maxDailyTransfers * 2) {
-        return failure(new Error(
-          `Autonomous intent: daily transfer limit reached (${dailyCount}/${policy.maxDailyTransfers * 2})`
-        ));
+        return failure(
+          new Error(
+            `Autonomous intent: daily transfer limit reached (${dailyCount}/${policy.maxDailyTransfers * 2})`
+          )
+        );
       }
 
       // Enforce max transfer amount for SOL transfers
@@ -223,18 +226,22 @@ export class WalletManager {
       if (action === 'transfer_sol' || action === 'transfer_token') {
         const amount = (intent as unknown as Record<string, unknown>)['amount'];
         if (typeof amount === 'number' && amount > policy.maxTransferAmount * 2) {
-          return failure(new Error(
-            `Autonomous transfer amount ${amount} exceeds safety cap (${policy.maxTransferAmount * 2} SOL)`
-          ));
+          return failure(
+            new Error(
+              `Autonomous transfer amount ${amount} exceeds safety cap (${policy.maxTransferAmount * 2} SOL)`
+            )
+          );
         }
       }
 
       // Enforce minimum balance (0.05 SOL reserve for autonomous)
       const minReserve = Math.max(policy.requireMinBalance, 0.05);
       if (currentBalance < minReserve) {
-        return failure(new Error(
-          `Autonomous intent: wallet balance (${currentBalance} SOL) below safety reserve (${minReserve} SOL)`
-        ));
+        return failure(
+          new Error(
+            `Autonomous intent: wallet balance (${currentBalance} SOL) below safety reserve (${minReserve} SOL)`
+          )
+        );
       }
 
       return success(true);
@@ -249,20 +256,24 @@ export class WalletManager {
     if (intent.type === 'transfer_sol') {
       // Check max transfer amount
       if (intent.amount > policy.maxTransferAmount) {
-        return failure(new Error(`Transfer amount ${intent.amount} exceeds max ${policy.maxTransferAmount}`));
+        return failure(
+          new Error(`Transfer amount ${intent.amount} exceeds max ${policy.maxTransferAmount}`)
+        );
       }
-      
+
       // Check minimum balance requirement
       const balanceAfterTransfer = currentBalance - intent.amount - ESTIMATED_SOL_TRANSFER_FEE;
       if (balanceAfterTransfer < policy.requireMinBalance) {
-        return failure(new Error(`Transfer would leave balance below minimum (${policy.requireMinBalance} SOL)`));
+        return failure(
+          new Error(`Transfer would leave balance below minimum (${policy.requireMinBalance} SOL)`)
+        );
       }
-      
+
       // Check allowed/blocked recipients
       if (policy.allowedRecipients && !policy.allowedRecipients.includes(intent.recipient)) {
         return failure(new Error('Recipient not in allowed list'));
       }
-      
+
       if (policy.blockedRecipients?.includes(intent.recipient)) {
         return failure(new Error('Recipient is blocked'));
       }
@@ -272,7 +283,11 @@ export class WalletManager {
       // Token transfers still need SOL for fees; enforce minimum balance
       const balanceAfterFees = currentBalance - ESTIMATED_TOKEN_TRANSFER_FEE;
       if (balanceAfterFees < policy.requireMinBalance) {
-        return failure(new Error(`Insufficient SOL for token transfer fees (min ${policy.requireMinBalance} SOL)`));
+        return failure(
+          new Error(
+            `Insufficient SOL for token transfer fees (min ${policy.requireMinBalance} SOL)`
+          )
+        );
       }
 
       // Validate recipient
@@ -289,7 +304,7 @@ export class WalletManager {
         return failure(new Error('Token transfer amount must be positive'));
       }
     }
-    
+
     return success(true);
   }
 
@@ -306,16 +321,16 @@ export class WalletManager {
    */
   updatePolicy(walletId: string, policy: Partial<Policy>): Result<Policy, Error> {
     const currentPolicy = this.policies.get(walletId);
-    
+
     if (!currentPolicy) {
       return failure(new Error(`Wallet not found: ${walletId}`));
     }
-    
+
     const newPolicy = { ...currentPolicy, ...policy };
     this.policies.set(walletId, newPolicy);
-    
+
     logger.info('Policy updated', { walletId, policy: newPolicy });
-    
+
     this.saveToStore();
     return success(newPolicy);
   }
@@ -325,11 +340,11 @@ export class WalletManager {
    */
   getPolicy(walletId: string): Result<Policy, Error> {
     const policy = this.policies.get(walletId);
-    
+
     if (!policy) {
       return failure(new Error(`Policy not found for wallet: ${walletId}`));
     }
-    
+
     return success(policy);
   }
 
@@ -340,13 +355,13 @@ export class WalletManager {
     if (!this.wallets.has(walletId)) {
       return failure(new Error(`Wallet not found: ${walletId}`));
     }
-    
+
     this.wallets.delete(walletId);
     this.policies.delete(walletId);
     this.dailyTransfers.delete(walletId);
-    
+
     logger.info('Wallet deleted', { walletId });
-    
+
     this.saveToStore();
     return success(true);
   }
@@ -375,7 +390,9 @@ export class WalletManager {
   }
 
   private loadFromStore(): void {
-    const saved = loadState<{ wallets: InternalWallet[]; policies: Record<string, Policy> }>('wallets');
+    const saved = loadState<{ wallets: InternalWallet[]; policies: Record<string, Policy> }>(
+      'wallets'
+    );
     if (!saved) return;
 
     let loaded = 0;

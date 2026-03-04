@@ -59,8 +59,8 @@ function StepIndicator({ current, total }: { current: number; total: number }) {
             i + 1 === current
               ? 'w-6 bg-primary-500'
               : i + 1 < current
-              ? 'w-1.5 bg-primary-300'
-              : 'w-1.5 bg-border-medium'
+                ? 'w-1.5 bg-primary-300'
+                : 'w-1.5 bg-border-medium'
           )}
         />
       ))}
@@ -90,9 +90,7 @@ function FieldInput({
           />
           <div>
             <span className="text-body-sm text-text-primary">{field.label}</span>
-            {field.description && (
-              <p className="text-micro text-text-muted">{field.description}</p>
-            )}
+            {field.description && <p className="text-micro text-text-muted">{field.description}</p>}
           </div>
         </label>
       );
@@ -146,9 +144,7 @@ function FieldInput({
           <input
             type="number"
             value={value !== undefined && value !== '' ? Number(value) : ''}
-            onChange={(e) =>
-              onChange(e.target.value === '' ? undefined : Number(e.target.value))
-            }
+            onChange={(e) => onChange(e.target.value === '' ? undefined : Number(e.target.value))}
             placeholder={field.default !== undefined ? String(field.default) : ''}
             className="input"
             step="any"
@@ -489,29 +485,31 @@ export function CreateAgentModal({ isOpen, onClose, onCreated }: CreateAgentModa
                     >
                       <div className="rounded-xl border border-border-light bg-background p-4 space-y-3">
                         <Row label="Name" value={name} />
-                        <Row label="Strategy" value={currentStrategyDef?.label ?? selectedStrategy} />
+                        <Row
+                          label="Strategy"
+                          value={currentStrategyDef?.label ?? selectedStrategy}
+                        />
                         <Row label="Auto-start" value={execEnabled ? 'Yes' : 'No'} />
                         <Row label="Cycle" value={`${cycleInterval.toLocaleString()} ms`} />
                         <Row label="Max actions/day" value={String(maxActions)} />
-                        {currentStrategyDef &&
-                          currentStrategyDef.fields.length > 0 && (
-                            <>
-                              <div className="border-t border-border-light pt-2">
-                                <span className="text-micro text-text-tertiary">Parameters</span>
-                              </div>
-                              {currentStrategyDef.fields.map((f) => (
-                                <Row
-                                  key={f.key}
-                                  label={f.label}
-                                  value={
-                                    strategyParams[f.key] !== undefined
-                                      ? JSON.stringify(strategyParams[f.key])
-                                      : '—'
-                                  }
-                                />
-                              ))}
-                            </>
-                          )}
+                        {currentStrategyDef && currentStrategyDef.fields.length > 0 && (
+                          <>
+                            <div className="border-t border-border-light pt-2">
+                              <span className="text-micro text-text-tertiary">Parameters</span>
+                            </div>
+                            {currentStrategyDef.fields.map((f) => (
+                              <Row
+                                key={f.key}
+                                label={f.label}
+                                value={
+                                  strategyParams[f.key] !== undefined
+                                    ? JSON.stringify(strategyParams[f.key])
+                                    : '—'
+                                }
+                              />
+                            ))}
+                          </>
+                        )}
                       </div>
                     </motion.div>
                   )}
@@ -577,4 +575,3 @@ function Row({ label, value }: { label: string; value: string }) {
     </div>
   );
 }
-

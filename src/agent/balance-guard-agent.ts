@@ -32,7 +32,7 @@ export class BalanceGuardAgent extends BaseAgent {
     name: string,
     walletId: string,
     walletPublicKey: string,
-    params?: Partial<BalanceGuardParams>,
+    params?: Partial<BalanceGuardParams>
   ) {
     super(name, 'balance_guard', walletId, walletPublicKey, params as Record<string, unknown>);
     this.params = { ...DEFAULT_PARAMS, ...params };
@@ -45,7 +45,10 @@ export class BalanceGuardAgent extends BaseAgent {
 
   async think(context: AgentContext): Promise<AgentDecision> {
     if (this.airdropsToday >= this.params.maxAirdropsPerDay) {
-      return { shouldAct: false, reasoning: `Daily airdrop limit reached (${this.params.maxAirdropsPerDay})` };
+      return {
+        shouldAct: false,
+        reasoning: `Daily airdrop limit reached (${this.params.maxAirdropsPerDay})`,
+      };
     }
 
     if (context.balance.sol < this.params.criticalBalance) {
@@ -62,7 +65,10 @@ export class BalanceGuardAgent extends BaseAgent {
       };
     }
 
-    return { shouldAct: false, reasoning: `Balance (${context.balance.sol} SOL) is above critical threshold` };
+    return {
+      shouldAct: false,
+      reasoning: `Balance (${context.balance.sol} SOL) is above critical threshold`,
+    };
   }
 
   resetDailyCounters(): void {

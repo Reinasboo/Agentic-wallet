@@ -2,15 +2,15 @@
 
 /**
  * Transaction List Component
- * 
+ *
  * Clean, scannable transaction history.
  * Focus on clarity over density.
  */
 
 import { motion } from 'framer-motion';
-import { 
-  ArrowUpRight, 
-  ArrowDownLeft, 
+import {
+  ArrowUpRight,
+  ArrowDownLeft,
   ExternalLink,
   CheckCircle2,
   XCircle,
@@ -111,9 +111,7 @@ export function TransactionList({ transactions, loading, compact = false }: Tran
           <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-background-secondary flex items-center justify-center">
             <Clock className="w-5 h-5 text-text-muted" />
           </div>
-          <p className="text-body-sm text-text-tertiary">
-            No transactions yet
-          </p>
+          <p className="text-body-sm text-text-tertiary">No transactions yet</p>
         </div>
       </div>
     );
@@ -126,21 +124,23 @@ export function TransactionList({ transactions, loading, compact = false }: Tran
           key={tx.id}
           initial={{ opacity: 0, y: 8 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ 
+          transition={{
             delay: index * 0.02,
             duration: 0.25,
-            ease: [0.16, 1, 0.3, 1]
+            ease: [0.16, 1, 0.3, 1],
           }}
           className={cn(
-            "flex items-center gap-4 hover:bg-background-secondary/50 transition-colors",
-            compact ? "px-4 py-3" : "px-5 py-4"
+            'flex items-center gap-4 hover:bg-background-secondary/50 transition-colors',
+            compact ? 'px-4 py-3' : 'px-5 py-4'
           )}
         >
           {/* Icon */}
-          <div className={cn(
-            "flex-shrink-0 rounded-lg bg-background-tertiary flex items-center justify-center text-text-tertiary",
-            compact ? "w-8 h-8" : "w-10 h-10"
-          )}>
+          <div
+            className={cn(
+              'flex-shrink-0 rounded-lg bg-background-tertiary flex items-center justify-center text-text-tertiary',
+              compact ? 'w-8 h-8' : 'w-10 h-10'
+            )}
+          >
             {getTransactionIcon(tx.type)}
           </div>
 
@@ -175,11 +175,14 @@ export function TransactionList({ transactions, loading, compact = false }: Tran
           {/* Amount */}
           <div className="text-right flex-shrink-0">
             {tx.amount ? (
-              <span className={cn(
-                "mono font-medium",
-                tx.type === 'airdrop' ? 'text-status-success' : 'text-text-primary'
-              )}>
-                {tx.type === 'airdrop' ? '+' : '-'}{formatSol(tx.amount, 3)}
+              <span
+                className={cn(
+                  'mono font-medium',
+                  tx.type === 'airdrop' ? 'text-status-success' : 'text-text-primary'
+                )}
+              >
+                {tx.type === 'airdrop' ? '+' : '-'}
+                {formatSol(tx.amount, 3)}
                 <span className="text-text-tertiary ml-1">SOL</span>
               </span>
             ) : (
@@ -204,4 +207,3 @@ export function TransactionList({ transactions, loading, compact = false }: Tran
     </div>
   );
 }
-

@@ -2,7 +2,7 @@
 
 /**
  * Navigation Sidebar Component
- * 
+ *
  * Quiet, minimal sidebar that doesn't compete with content.
  * Navigation is present but unobtrusive.
  */
@@ -71,9 +71,7 @@ export function Sidebar() {
             <span className="text-primary-600 font-semibold text-lg">A</span>
           </div>
           <div>
-            <span className="font-semibold text-body-lg text-text-primary">
-              Agentic
-            </span>
+            <span className="font-semibold text-body-lg text-text-primary">Agentic</span>
             <span className="block text-micro text-text-muted">Wallet System</span>
           </div>
         </Link>
@@ -83,18 +81,15 @@ export function Sidebar() {
       <nav className="flex-1 py-8 px-4">
         <ul className="space-y-1">
           {navItems.map((item) => {
-            const isActive = pathname === item.href || 
-              (item.href !== '/' && pathname?.startsWith(item.href));
+            const isActive =
+              pathname === item.href || (item.href !== '/' && pathname?.startsWith(item.href));
             const Icon = item.icon;
 
             return (
               <li key={item.href}>
                 <Link
                   href={item.href}
-                  className={cn(
-                    'nav-link relative',
-                    isActive && 'nav-link-active'
-                  )}
+                  className={cn('nav-link relative', isActive && 'nav-link-active')}
                 >
                   {isActive && (
                     <motion.div

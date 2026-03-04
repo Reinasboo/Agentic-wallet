@@ -2,15 +2,15 @@
 
 /**
  * Activity Feed Component
- * 
+ *
  * Calm, readable timeline of system activity.
  * Designed for monitoring at a glance.
  */
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { 
-  Bot, 
-  ArrowUpRight, 
+import {
+  Bot,
+  ArrowUpRight,
   ArrowDownLeft,
   CheckCircle2,
   XCircle,
@@ -20,11 +20,7 @@ import {
 } from 'lucide-react';
 import { useWebSocket, useEvents } from '@/lib/hooks';
 import type { SystemEvent } from '@/lib/types';
-import {
-  cn,
-  formatRelativeTime,
-  formatSol,
-} from '@/lib/utils';
+import { cn, formatRelativeTime, formatSol } from '@/lib/utils';
 
 interface ActivityFeedProps {
   events?: SystemEvent[];
@@ -57,9 +53,7 @@ function getEventTitle(event: SystemEvent): string {
     case 'agent_status_changed':
       return `Status changed to ${(event.details?.newStatus as string) ?? 'unknown'}`;
     case 'agent_action':
-      return event.action === 'decided_to_act' 
-        ? 'Agent executing intent'
-        : 'Agent waiting';
+      return event.action === 'decided_to_act' ? 'Agent executing intent' : 'Agent waiting';
     case 'transaction':
       if (event.transaction?.type === 'airdrop') {
         return `Airdrop received`;
@@ -100,7 +94,11 @@ function getEventStatusIcon(event: SystemEvent) {
   return null;
 }
 
-export function ActivityFeed({ events: propEvents, maxItems = 15, title = 'Recent Activity' }: ActivityFeedProps) {
+export function ActivityFeed({
+  events: propEvents,
+  maxItems = 15,
+  title = 'Recent Activity',
+}: ActivityFeedProps) {
   const { events: wsEvents, connected } = useWebSocket();
   const { events: restEvents } = useEvents(50, 10000);
 
@@ -114,13 +112,13 @@ export function ActivityFeed({ events: propEvents, maxItems = 15, title = 'Recen
       <div className="flex items-center justify-between mb-5">
         <h3 className="text-label text-text-secondary">{title}</h3>
         <div className="flex items-center gap-2">
-          <span className={cn(
-            'w-1.5 h-1.5 rounded-full',
-            connected ? 'bg-status-success' : 'bg-status-error'
-          )} />
-          <span className="text-micro text-text-muted">
-            {connected ? 'Live' : 'Offline'}
-          </span>
+          <span
+            className={cn(
+              'w-1.5 h-1.5 rounded-full',
+              connected ? 'bg-status-success' : 'bg-status-error'
+            )}
+          />
+          <span className="text-micro text-text-muted">{connected ? 'Live' : 'Offline'}</span>
         </div>
       </div>
 
@@ -132,9 +130,7 @@ export function ActivityFeed({ events: propEvents, maxItems = 15, title = 'Recen
               <div className="w-10 h-10 mx-auto mb-3 rounded-full bg-background-secondary flex items-center justify-center">
                 <Clock className="w-5 h-5 text-text-muted" />
               </div>
-              <p className="text-body-sm text-text-tertiary">
-                No activity yet
-              </p>
+              <p className="text-body-sm text-text-tertiary">No activity yet</p>
             </div>
           ) : (
             displayEvents.map((event) => {
@@ -158,15 +154,11 @@ export function ActivityFeed({ events: propEvents, maxItems = 15, title = 'Recen
                   {/* Content */}
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-body-sm text-text-primary">
-                        {getEventTitle(event)}
-                      </span>
+                      <span className="text-body-sm text-text-primary">{getEventTitle(event)}</span>
                       {statusIcon}
                     </div>
                     {detail && (
-                      <p className="text-caption text-text-muted truncate mt-0.5">
-                        {detail}
-                      </p>
+                      <p className="text-caption text-text-muted truncate mt-0.5">{detail}</p>
                     )}
                   </div>
 
@@ -183,4 +175,3 @@ export function ActivityFeed({ events: propEvents, maxItems = 15, title = 'Recen
     </div>
   );
 }
-

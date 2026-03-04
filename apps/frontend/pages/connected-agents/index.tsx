@@ -8,11 +8,7 @@
  */
 
 import Head from 'next/head';
-import {
-  Sidebar,
-  Header,
-  ConnectedAgentsList,
-} from '@/components';
+import { Sidebar, Header, ConnectedAgentsList } from '@/components';
 import { useExternalAgents } from '@/lib/hooks';
 
 export default function ConnectedAgentsPage() {
@@ -28,10 +24,7 @@ export default function ConnectedAgentsPage() {
         <Sidebar />
 
         <div className="flex-1 ml-60">
-          <Header
-            title="Connected Agents"
-            subtitle="External agents registered via the BYOA API"
-          />
+          <Header title="Connected Agents" subtitle="External agents registered via the BYOA API" />
 
           <main className="px-8 lg:px-12 pb-12 space-y-6">
             {loading ? (

@@ -2,7 +2,7 @@
 
 /**
  * Agent Detail Page
- * 
+ *
  * Detailed view of a single agent with transactions and activity.
  */
 
@@ -145,11 +145,10 @@ export default function AgentDetailPage() {
                     <Bot className="w-7 h-7 text-primary" />
                   </div>
                   <div>
-                    <h1 className="text-xl font-semibold text-text-primary">
-                      {agent.name}
-                    </h1>
+                    <h1 className="text-xl font-semibold text-text-primary">{agent.name}</h1>
                     <p className="text-sm text-text-secondary mt-1">
-                      {getStrategyDisplayName(agent.strategy)} · {getStrategyDescription(agent.strategy)}
+                      {getStrategyDisplayName(agent.strategy)} ·{' '}
+                      {getStrategyDescription(agent.strategy)}
                     </p>
                   </div>
                 </div>
@@ -193,9 +192,7 @@ export default function AgentDetailPage() {
               {/* Error message */}
               {agent.errorMessage && (
                 <div className="mt-4 p-3 bg-status-error/10 border border-status-error/20 rounded-lg">
-                  <p className="text-sm text-status-error">
-                    {agent.errorMessage}
-                  </p>
+                  <p className="text-sm text-status-error">{agent.errorMessage}</p>
                 </div>
               )}
             </motion.div>
@@ -253,7 +250,9 @@ export default function AgentDetailPage() {
                   </div>
                   <span className="text-sm text-text-secondary">Balance</span>
                 </div>
-                <div className="text-2xl font-semibold text-text-primary">{formatSol(balance)} SOL</div>
+                <div className="text-2xl font-semibold text-text-primary">
+                  {formatSol(balance)} SOL
+                </div>
               </motion.div>
 
               {/* Activity Card */}
@@ -269,7 +268,9 @@ export default function AgentDetailPage() {
                   </div>
                   <span className="text-sm text-text-secondary">Transactions</span>
                 </div>
-                <div className="text-2xl font-semibold text-text-primary">{transactions.length}</div>
+                <div className="text-2xl font-semibold text-text-primary">
+                  {transactions.length}
+                </div>
                 {agent.lastActionAt && (
                   <p className="text-xs text-text-tertiary mt-1">
                     Last action: {formatTimestamp(agent.lastActionAt)}
@@ -289,18 +290,14 @@ export default function AgentDetailPage() {
                 transition={{ delay: 0.25, duration: 0.4, ease: [0.16, 1, 0.3, 1] }}
                 className="card p-5"
               >
-                <h3 className="text-base font-medium text-text-primary mb-4">
-                  Token Balances
-                </h3>
+                <h3 className="text-base font-medium text-text-primary mb-4">Token Balances</h3>
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                   {tokenBalances.map((token) => (
                     <div key={token.mint} className="p-4 bg-background-secondary rounded-lg">
                       <div className="text-xs text-text-tertiary mb-1">
                         {truncateAddress(token.mint, 4, 4)}
                       </div>
-                      <div className="font-mono text-text-primary">
-                        {token.uiAmount}
-                      </div>
+                      <div className="font-mono text-text-primary">{token.uiAmount}</div>
                     </div>
                   ))}
                 </div>

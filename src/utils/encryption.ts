@@ -1,6 +1,6 @@
 /**
  * Encryption utilities for secure key storage
- * 
+ *
  * Uses AES-256-GCM for authenticated encryption.
  * Keys are encrypted at rest and only decrypted when signing.
  */
@@ -33,14 +33,11 @@ export function encrypt(data: Uint8Array, passphrase: string): string {
   const salt = randomBytes(SALT_LENGTH);
   const key = deriveKey(passphrase, salt);
   const iv = randomBytes(IV_LENGTH);
-  
+
   const cipher = createCipheriv(ALGORITHM, key, iv);
-  const encrypted = Buffer.concat([
-    cipher.update(Buffer.from(data)),
-    cipher.final(),
-  ]);
+  const encrypted = Buffer.concat([cipher.update(Buffer.from(data)), cipher.final()]);
   const authTag = cipher.getAuthTag();
-  
+
   // Combine: salt + iv + authTag + ciphertext
   const combined = Buffer.concat([salt, iv, authTag, encrypted]);
   return combined.toString('base64');
@@ -51,7 +48,7 @@ export function encrypt(data: Uint8Array, passphrase: string): string {
  */
 export function decrypt(encryptedData: string, passphrase: string): Uint8Array {
   const combined = Buffer.from(encryptedData, 'base64');
-  
+
   // Extract components
   const salt = combined.subarray(0, SALT_LENGTH);
   const iv = combined.subarray(SALT_LENGTH, SALT_LENGTH + IV_LENGTH);
@@ -60,17 +57,14 @@ export function decrypt(encryptedData: string, passphrase: string): Uint8Array {
     SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH
   );
   const ciphertext = combined.subarray(SALT_LENGTH + IV_LENGTH + AUTH_TAG_LENGTH);
-  
+
   const key = deriveKey(passphrase, salt);
-  
+
   const decipher = createDecipheriv(ALGORITHM, key, iv);
   decipher.setAuthTag(authTag);
-  
-  const decrypted = Buffer.concat([
-    decipher.update(ciphertext),
-    decipher.final(),
-  ]);
-  
+
+  const decrypted = Buffer.concat([decipher.update(ciphertext), decipher.final()]);
+
   return new Uint8Array(decrypted);
 }
 
@@ -80,7 +74,7 @@ export function decrypt(encryptedData: string, passphrase: string): Uint8Array {
 export function secureCompare(a: string, b: string): boolean {
   const bufA = Buffer.from(a);
   const bufB = Buffer.from(b);
-  
+
   // Pad to equal length to avoid leaking length via timing
   if (bufA.length !== bufB.length) {
     // Compare bufA against itself so we still do constant-time work,
@@ -88,7 +82,7 @@ export function secureCompare(a: string, b: string): boolean {
     timingSafeEqual(bufA, bufA);
     return false;
   }
-  
+
   return timingSafeEqual(bufA, bufB);
 }
 

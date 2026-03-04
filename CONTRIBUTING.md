@@ -42,11 +42,11 @@ Please report unacceptable behavior to [security@agentic-wallet.dev](mailto:secu
 
 ### Prerequisites
 
-| Requirement | Version |
-|---|---|
-| Node.js | ≥ 18.0 (20 recommended) |
-| npm | ≥ 9.0 |
-| Git | latest |
+| Requirement | Version                 |
+| ----------- | ----------------------- |
+| Node.js     | ≥ 18.0 (20 recommended) |
+| npm         | ≥ 9.0                   |
+| Git         | latest                  |
 
 ### Installation
 
@@ -83,15 +83,15 @@ npm test -- --run
 
 Use `<prefix>/<short-description>` in kebab-case.
 
-| Prefix | Purpose |
-|---|---|
-| `feat/` | New functionality |
-| `fix/` | Bug fix |
-| `docs/` | Documentation updates |
-| `test/` | Test additions or changes |
-| `ci/` | Workflow and pipeline changes |
-| `chore/` | Maintenance and tooling |
-| `security/` | Security hardening |
+| Prefix      | Purpose                                 |
+| ----------- | --------------------------------------- |
+| `feat/`     | New functionality                       |
+| `fix/`      | Bug fix                                 |
+| `docs/`     | Documentation updates                   |
+| `test/`     | Test additions or changes               |
+| `ci/`       | Workflow and pipeline changes           |
+| `chore/`    | Maintenance and tooling                 |
+| `security/` | Security hardening                      |
 | `refactor/` | Code restructuring (no behavior change) |
 
 **Examples:**

@@ -36,7 +36,7 @@ export type SupportedIntentType =
 export interface ExternalAgentRegistration {
   readonly agentName: string;
   readonly agentType: ExternalAgentType;
-  readonly agentEndpoint?: string;           // Required for remote agents
+  readonly agentEndpoint?: string; // Required for remote agents
   readonly supportedIntents: SupportedIntentType[];
   readonly metadata?: Record<string, unknown>;
 }
@@ -50,7 +50,7 @@ export interface ExternalAgentRecord {
   readonly status: ExternalAgentStatus;
   readonly walletId?: string;
   readonly walletPublicKey?: string;
-  readonly controlTokenHash: string;         // SHA-256 hash — raw token never stored
+  readonly controlTokenHash: string; // SHA-256 hash — raw token never stored
   readonly createdAt: Date;
   readonly lastActiveAt?: Date;
   readonly metadata?: Record<string, unknown>;
@@ -73,7 +73,7 @@ export interface ExternalAgentInfo {
 
 export interface RegistrationResult {
   readonly agentId: string;
-  readonly controlToken: string;             // Returned ONCE
+  readonly controlToken: string; // Returned ONCE
 }
 
 // ────────────────────────────────────────────
@@ -111,7 +111,9 @@ export class AgentRegistry {
   }
 
   private loadFromStore(): void {
-    interface SavedBYOA { agents: ExternalAgentRecord[] }
+    interface SavedBYOA {
+      agents: ExternalAgentRecord[];
+    }
     const saved = loadState<SavedBYOA>('byoa-agents');
     if (!saved?.agents?.length) return;
 

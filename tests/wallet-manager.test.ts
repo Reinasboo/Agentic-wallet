@@ -108,7 +108,7 @@ describe('WalletManager', () => {
           fromPubkey: pkResult.value,
           toPubkey: pkResult.value, // self-transfer for testing
           lamports: 100,
-        }),
+        })
       );
       tx.recentBlockhash = 'GHtXQBSoZsSaMmmFwpEhCbyUhHR9xACrKS9gHsV5A5Bj';
       tx.feePayer = pkResult.value;

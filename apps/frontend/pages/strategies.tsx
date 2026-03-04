@@ -125,7 +125,8 @@ function StrategyCard({ strategy }: { strategy: StrategyDefinition }) {
             className="w-full flex items-center justify-between px-6 py-3 border-t border-border-light bg-background-secondary/30 hover:bg-background-secondary/60 transition-colors"
           >
             <span className="text-caption text-text-muted">
-              {strategy.fields.length} configurable parameter{strategy.fields.length === 1 ? '' : 's'}
+              {strategy.fields.length} configurable parameter
+              {strategy.fields.length === 1 ? '' : 's'}
             </span>
             {expanded ? (
               <ChevronUp className="w-4 h-4 text-text-muted" />
@@ -183,27 +184,25 @@ export default function StrategiesPage() {
               <div className="text-center py-12 text-text-muted">Loading strategies…</div>
             )}
 
-            {error && (
-              <div className="text-center py-12 text-status-error">{error}</div>
-            )}
+            {error && <div className="text-center py-12 text-status-error">{error}</div>}
 
-            {!loading && !error && Object.entries(grouped).map(([category, items]) => (
-              <section key={category}>
-                <h2 className="text-label text-text-secondary mb-4">
-                  {categoryLabels[category] ?? category}
-                </h2>
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
-                  {items.map((strategy) => (
-                    <StrategyCard key={strategy.name} strategy={strategy} />
-                  ))}
-                </div>
-              </section>
-            ))}
+            {!loading &&
+              !error &&
+              Object.entries(grouped).map(([category, items]) => (
+                <section key={category}>
+                  <h2 className="text-label text-text-secondary mb-4">
+                    {categoryLabels[category] ?? category}
+                  </h2>
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                    {items.map((strategy) => (
+                      <StrategyCard key={strategy.name} strategy={strategy} />
+                    ))}
+                  </div>
+                </section>
+              ))}
 
             {!loading && !error && strategies.length === 0 && (
-              <div className="text-center py-12 text-text-muted">
-                No strategies available.
-              </div>
+              <div className="text-center py-12 text-text-muted">No strategies available.</div>
             )}
           </main>
         </div>

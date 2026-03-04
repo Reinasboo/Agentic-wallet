@@ -36,13 +36,13 @@ class Logger {
   private formatEntry(entry: LogEntry): string {
     const { timestamp, level, layer, message, data } = entry;
     const prefix = `[${timestamp}] [${level.toUpperCase().padEnd(5)}] [${layer}]`;
-    
+
     if (data && Object.keys(data).length > 0) {
       // Sanitize data - never log anything that looks like a key
       const sanitizedData = this.sanitize(data);
       return `${prefix} ${message} ${JSON.stringify(sanitizedData)}`;
     }
-    
+
     return `${prefix} ${message}`;
   }
 
@@ -51,13 +51,13 @@ class Logger {
     // Keys that contain 'key' but are safe to log
     const safeKeys = ['publicKey', 'publickey', 'walletPublicKey'];
     const result: Record<string, unknown> = {};
-    
+
     for (const [key, value] of Object.entries(data)) {
       const lowerKey = key.toLowerCase();
       // Skip redaction for known-safe keys
-      if (safeKeys.some(sk => lowerKey === sk.toLowerCase())) {
+      if (safeKeys.some((sk) => lowerKey === sk.toLowerCase())) {
         result[key] = value;
-      } else if (sensitiveKeys.some(sk => lowerKey.includes(sk.toLowerCase()))) {
+      } else if (sensitiveKeys.some((sk) => lowerKey.includes(sk.toLowerCase()))) {
         result[key] = '[REDACTED]';
       } else if (typeof value === 'object' && value !== null) {
         result[key] = this.sanitize(value as Record<string, unknown>);
@@ -65,7 +65,7 @@ class Logger {
         result[key] = value;
       }
     }
-    
+
     return result;
   }
 

@@ -1,6 +1,6 @@
 /**
  * Core Type Definitions for Agentic Wallet System
- * 
+ *
  * These types define the strict boundaries between system layers.
  * Private keys are NEVER exposed in these interfaces.
  */
@@ -55,12 +55,7 @@ export interface InternalWallet {
 // TRANSACTION TYPES
 // ============================================
 
-export type TransactionStatus = 
-  | 'pending'
-  | 'submitted'
-  | 'confirmed'
-  | 'finalized'
-  | 'failed';
+export type TransactionStatus = 'pending' | 'submitted' | 'confirmed' | 'finalized' | 'failed';
 
 export interface TransactionRecord {
   readonly id: string;
@@ -76,7 +71,7 @@ export interface TransactionRecord {
   readonly confirmedAt?: Date;
 }
 
-export type TransactionType = 
+export type TransactionType =
   | 'airdrop'
   | 'transfer_sol'
   | 'transfer_spl'
@@ -89,13 +84,7 @@ export type TransactionType =
 // AGENT LAYER TYPES
 // ============================================
 
-export type AgentStatus = 
-  | 'idle'
-  | 'thinking'
-  | 'executing'
-  | 'waiting'
-  | 'error'
-  | 'stopped';
+export type AgentStatus = 'idle' | 'thinking' | 'executing' | 'waiting' | 'error' | 'stopped';
 
 export interface AgentInfo {
   readonly id: string;
@@ -140,7 +129,7 @@ export interface AgentConfig {
  * Intents are high-level actions that agents emit.
  * These are validated and executed by the wallet layer.
  */
-export type Intent = 
+export type Intent =
   | AirdropIntent
   | TransferSolIntent
   | TransferTokenIntent
@@ -192,7 +181,7 @@ export interface CheckBalanceIntent extends BaseIntent {
  */
 export interface AutonomousIntent extends BaseIntent {
   readonly type: 'autonomous';
-  readonly action: string;   // fully open — no enum restriction
+  readonly action: string; // fully open — no enum restriction
   readonly params: Record<string, unknown>;
 }
 
@@ -221,7 +210,7 @@ export const DEFAULT_POLICY: Policy = {
 // EVENT TYPES
 // ============================================
 
-export type SystemEvent = 
+export type SystemEvent =
   | AgentCreatedEvent
   | AgentStatusChangedEvent
   | AgentActionEvent
@@ -296,7 +285,7 @@ export interface SystemStats {
 // RESULT TYPES
 // ============================================
 
-export type Result<T, E = Error> = 
+export type Result<T, E = Error> =
   | { readonly ok: true; readonly value: T }
   | { readonly ok: false; readonly error: E };
 
